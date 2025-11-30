@@ -447,17 +447,9 @@ export default function TerminalPage() {
                 Backend URL Not Set - Cannot Load Data
               </Badge>
             )}
-            {!isConnected && apiUrl && (
-              <Badge variant="destructive" className="text-xs">
-{isConnected ? (
-                  <Badge variant="default" className="bg-green-500/20 text-green-400 border-green-500/50">
-                    WebSocket Connected
-                  </Badge>
-                ) : reconnectAttempts >= 2 ? (
-                  <Badge variant="outline" className="border-gray-700 text-gray-400">
-                    Using Polling
-                  </Badge>
-                ) : null}
+            {!isConnected && apiUrl && reconnectAttempts >= 2 && (
+              <Badge variant="outline" className="text-xs border-gray-700 text-gray-400">
+                Using Polling Mode
               </Badge>
             )}
           </div>
