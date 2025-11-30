@@ -45,6 +45,13 @@ export function AnnotatedChart({
 
   useEffect(() => {
     if (!chartContainerRef.current) return
+    
+    // Don't initialize chart if no data
+    if (!data || data.length === 0) {
+      console.log('⏳ Waiting for chart data...')
+      setChartError(null) // Clear error, just waiting for data
+      return
+    }
 
     // CRITICAL: Prevent any use of addCandlestickSeries (v4 API)
     // This check ensures we fail gracefully if somehow old code is loaded
@@ -125,16 +132,21 @@ export function AnnotatedChart({
       console.log('✅ Candlestick series created successfully')
       seriesRef.current = candlestickSeries
 
-      // Convert data format
-      const formattedData: CandlestickData[] = data.map((d) => ({
-      time: d.time as any,
-      open: d.open,
-      high: d.high,
-      low: d.low,
-        close: d.close,
-      }))
+      // Convert data format - only if we have data
+      if (data && data.length > 0) {
+        const formattedData: CandlestickData[] = data.map((d) => ({
+          time: d.time as any,
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+        }))
 
-      candlestickSeries.setData(formattedData)
+        candlestickSeries.setData(formattedData)
+        console.log(`✅ Chart initialized with ${formattedData.length} candles`)
+      } else {
+        console.warn('⚠️ Chart created but no data to display yet')
+      }
 
       // Handle resize
       const handleResize = () => {
@@ -147,13 +159,17 @@ export function AnnotatedChart({
 
       return () => {
         window.removeEventListener("resize", handleResize)
-        chart.remove()
+        if (chart) {
+          chart.remove()
+        }
       }
     } catch (error) {
-      console.error("Error creating chart:", error)
-      setChartError(`Chart initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error("❌ Error creating chart:", error)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      console.error("Error details:", error)
+      setChartError(`Chart initialization failed: ${errorMsg}`)
     }
-  }, [])
+  }, [data, height]) // Re-run when data or height changes
 
   // Update data when it changes
   useEffect(() => {
@@ -273,10 +289,19 @@ export function AnnotatedChart({
         )}
       </div>
       {chartError ? (
-        <div className="p-8 text-center text-muted-foreground" style={{ height: `${height}px` }}>
-          <p className="text-destructive mb-2">⚠️ Chart Error</p>
-          <p className="text-sm">{chartError}</p>
-          <p className="text-xs mt-2">Data: {data.length} candles available</p>
+        <div className="p-8 text-center text-muted-foreground flex items-center justify-center" style={{ height: `${height}px` }}>
+          <div>
+            <p className="text-destructive mb-2">⚠️ Chart Error</p>
+            <p className="text-sm">{chartError}</p>
+            <p className="text-xs mt-2">Data: {data.length} candles available</p>
+          </div>
+        </div>
+      ) : !data || data.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground flex items-center justify-center" style={{ height: `${height}px` }}>
+          <div>
+            <p className="mb-2">⏳ Loading chart data...</p>
+            <p className="text-xs">Waiting for market data from backend</p>
+          </div>
         </div>
       ) : (
         <div ref={chartContainerRef} className="w-full" style={{ height: `${height}px` }} />

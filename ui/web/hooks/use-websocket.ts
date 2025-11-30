@@ -71,6 +71,9 @@ export function useWebSocket({
       }
 
       ws.onerror = (error) => {
+        console.error("🔌 WebSocket error:", error)
+        console.error("WebSocket URL:", url)
+        console.error("WebSocket readyState:", ws.readyState)
         onError?.(error)
       }
 

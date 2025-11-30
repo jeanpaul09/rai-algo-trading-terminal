@@ -129,7 +129,14 @@ export default function TerminalPage() {
       }
     },
     onError: (error) => {
-      console.error("WebSocket error:", error)
+      console.error("🔌 WebSocket connection error:", error)
+      console.error("WebSocket URL:", wsUrl)
+    },
+    onOpen: () => {
+      console.log("✅ WebSocket connected successfully")
+    },
+    onClose: () => {
+      console.warn("⚠️ WebSocket disconnected")
     },
   })
 
@@ -455,16 +462,14 @@ export default function TerminalPage() {
 
           {/* Chart */}
           <div className="flex-1 p-4 overflow-hidden">
-            <TerminalErrorBoundary>
-              <AnnotatedChart
-                data={chartData}
-                annotations={annotations}
-                symbol="BTC/USD"
-                height={400}
-                showAnnotations={showAnnotations}
-                strategyFilter={selectedStrategy}
-              />
-            </TerminalErrorBoundary>
+            <AnnotatedChart
+              data={chartData}
+              annotations={annotations}
+              symbol="BTC/USD"
+              height={400}
+              showAnnotations={showAnnotations}
+              strategyFilter={selectedStrategy}
+            />
           </div>
 
           {/* Brain Feed */}
