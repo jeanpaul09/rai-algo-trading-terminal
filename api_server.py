@@ -35,6 +35,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include additional API routers (Coinbase, Kraken, Polymarket)
+try:
+    from api_server_additional_apis import router as additional_apis_router
+    app.include_router(additional_apis_router)
+    print("✅ Additional APIs (Coinbase, Kraken, Polymarket) loaded")
+except Exception as e:
+    print(f"⚠️ Could not load additional APIs (optional): {e}")
+
 # Global state
 _jobs: Dict[str, Dict[str, Any]] = {}
 _live_traders: Dict[str, LiveTrader] = {}
