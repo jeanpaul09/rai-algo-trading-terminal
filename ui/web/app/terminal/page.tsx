@@ -195,15 +195,59 @@ export default function TerminalPage() {
     },
   })
 
-  // Load initial data
+  // Load initial data - try real API first, fallback to mock
   useEffect(() => {
-    setChartData(generateMockOHLCV())
-    setAnnotations(generateMockAnnotations())
+    const loadData = async () => {
+      try {
+        // Try to fetch real data from backend
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || ""
+        if (apiBase) {
+          const [status, wallet] = await Promise.all([
+            fetch(`${apiBase}/api/terminal/status`).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(`${apiBase}/api/terminal/wallet`).then(r => r.ok ? r.json() : null).catch(() => null),
+          ])
+          
+          if (status) {
+            setAgentStatus(status)
+          }
+          if (wallet) {
+            setWalletInfo(wallet)
+          }
+        }
+      } catch (error) {
+        console.log("Using mock data - backend not available:", error)
+      }
+      
+      // Always load mock data as fallback
+      setChartData(generateMockOHLCV())
+      setAnnotations(generateMockAnnotations())
+    }
+    
+    loadData()
   }, [])
 
   // Handlers
-  const handleModeChange = (mode: "OFF" | "DEMO" | "LIVE") => {
+  const handleModeChange = async (mode: "OFF" | "DEMO" | "LIVE") => {
     setAgentStatus((prev) => ({ ...prev, mode, isActive: mode !== "OFF" }))
+    
+    // Send to backend if connected
+    if (isConnected && send) {
+      send({ type: "set_agent_mode", mode })
+    } else {
+      // Try REST API as fallback
+      try {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL
+        if (apiBase) {
+          await fetch(`${apiBase}/api/terminal/status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode }),
+          }).catch(() => {})
+        }
+      } catch (e) {
+        console.log("Could not update mode on backend")
+      }
+    }
   }
 
   const handleToggleAgent = () => {
@@ -281,11 +325,18 @@ export default function TerminalPage() {
           onEmergencyStop={handleEmergencyStop}
           onToggleAgent={handleToggleAgent}
         />
-        {!isConnected && (
-          <div className="absolute top-0 right-4 p-2">
-            <Badge variant="destructive" className="text-xs">
-              WebSocket Disconnected
-            </Badge>
+        {(!isConnected || !process.env.NEXT_PUBLIC_API_URL) && (
+          <div className="absolute top-0 right-4 p-2 flex gap-2">
+            {!process.env.NEXT_PUBLIC_API_URL && (
+              <Badge variant="destructive" className="text-xs">
+                Backend URL Not Set - Using Mock Data
+              </Badge>
+            )}
+            {!isConnected && process.env.NEXT_PUBLIC_API_URL && (
+              <Badge variant="destructive" className="text-xs">
+                WebSocket Disconnected
+              </Badge>
+            )}
           </div>
         )}
       </div>
