@@ -121,6 +121,7 @@ export default function TerminalPage() {
   const [commands, setCommands] = useState<AgentCommand[]>([])
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null)
   const [showAnnotations, setShowAnnotations] = useState(true)
+  const [backendConnected, setBackendConnected] = useState(false)
 
   // WebSocket connection for real-time updates
   const [wsUrl, setWsUrl] = useState<string>("")
@@ -367,7 +368,6 @@ export default function TerminalPage() {
           onModeChange={handleModeChange}
           onEmergencyStop={handleEmergencyStop}
           onToggleAgent={handleToggleAgent}
-          backendConnected={backendConnected}
         />
         {(!isConnected || !process.env.NEXT_PUBLIC_API_URL) && (
           <div className="absolute top-0 right-4 p-2 flex gap-2">
