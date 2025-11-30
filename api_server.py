@@ -156,9 +156,13 @@ def fetch_hyperliquid_market_data(symbol: str, start_date: str, end_date: str) -
                         print(f"Error parsing candle: {e}")
                         continue
         
+        if market_data:
+            print(f"✅ Hyperliquid: Fetched {len(market_data)} candles for {symbol}")
+        else:
+            print(f"⚠️ Hyperliquid: No data returned for {symbol} (response had {len(candles)} candles but none matched time range)")
         return sorted(market_data, key=lambda x: x.timestamp) if market_data else []
     except Exception as e:
-        print(f"Error fetching Hyperliquid data for {symbol}: {e}")
+        print(f"❌ Error fetching Hyperliquid data for {symbol}: {e}")
         import traceback
         traceback.print_exc()
         return []
@@ -771,13 +775,20 @@ async def get_terminal_chart_data(symbol: str = "BTC/USDT", interval: str = "1h"
     days = max(limit / 24, 30)  # At least 30 days
     start_date = end_date - timedelta(days=days)
     
+    print(f"🔄 Terminal chart: Fetching {symbol} data (last {days} days, limit {limit})")
+    
     # Try Hyperliquid first (real data)
     data = fetch_hyperliquid_market_data(symbol, start_date.isoformat(), end_date.isoformat())
     
     # Fallback to Binance if Hyperliquid fails (real data)
-    if not data:
-        print(f"⚠️ Hyperliquid failed for {symbol}, trying Binance fallback...")
-        data = fetch_binance_market_data(symbol, start_date.isoformat(), end_date.isoformat(), interval)
+    if not data or len(data) == 0:
+        print(f"⚠️ Hyperliquid returned no data for {symbol}, trying Binance fallback...")
+        try:
+            data = fetch_binance_market_data(symbol, start_date.isoformat(), end_date.isoformat(), interval)
+            if data:
+                print(f"✅ Binance fallback: Got {len(data)} candles")
+        except Exception as e:
+            print(f"❌ Binance fallback also failed: {e}")
     
     # Return real data in chart format
     chart_data = [
@@ -794,9 +805,10 @@ async def get_terminal_chart_data(symbol: str = "BTC/USDT", interval: str = "1h"
     
     # Log for debugging
     if chart_data:
-        print(f"✅ Terminal chart: {len(chart_data)} real candles for {symbol}")
+        print(f"✅ Terminal chart: Returning {len(chart_data)} REAL candles for {symbol}")
+        print(f"   Price range: ${min(d['low'] for d in chart_data):,.2f} - ${max(d['high'] for d in chart_data):,.2f}")
     else:
-        print(f"⚠️ Terminal chart: No data returned for {symbol}")
+        print(f"⚠️ Terminal chart: No data returned for {symbol} (empty array)")
     
     return chart_data
 
