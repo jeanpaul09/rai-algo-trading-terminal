@@ -1,6 +1,6 @@
 """
 RAI-ALGO API Server with REAL Market Data
-Uses Hyperliquid and Binance public APIs - NO API KEYS NEEDED
+Uses Hyperliquid and Kraken public APIs - NO API KEYS NEEDED (no geo restrictions)
 """
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
@@ -69,13 +69,12 @@ except ImportError:
     anthropic_client = None
     print("⚠️  anthropic package not installed. Install with: pip install anthropic")
 
-# API URLs - REAL PUBLIC APIs (NO KEYS NEEDED)
+# API URLs - REAL PUBLIC APIs (NO KEYS NEEDED, NO GEO RESTRICTIONS)
 HYPERLIQUID_API = "https://api.hyperliquid.xyz"
-BINANCE_API = "https://api.binance.com/api/v3"
-BINANCE_FUTURES_API = "https://fapi.binance.com/fapi/v1"
-COINBASE_API = "https://api.coinbase.com/api/v3/brokerage"
 KRAKEN_API = "https://api.kraken.com/0/public"
+COINBASE_API = "https://api.coinbase.com/api/v3/brokerage"
 POLYMARKET_WS = "wss://clob.polymarket.com"  # WebSocket for real-time data
+# Binance removed - geo-restricted
 
 
 # Request Models
@@ -86,7 +85,7 @@ class BacktestRequest(BaseModel):
     end_date: str
     initial_capital: float = 10000.0
     parameters: Dict[str, Any] = {}
-    data_source: str = "binance"
+    data_source: str = "hyperliquid"  # Default to Hyperliquid (no geo restrictions)
 
 
 def fetch_hyperliquid_market_data(symbol: str, start_date: str, end_date: str) -> List[MarketData]:
@@ -168,53 +167,77 @@ def fetch_hyperliquid_market_data(symbol: str, start_date: str, end_date: str) -
         return []
 
 
-def fetch_binance_market_data(symbol: str, start_date: str, end_date: str, timeframe: str = "1h") -> List[MarketData]:
-    """Fetch REAL market data from Binance public API."""
+def fetch_kraken_market_data(symbol: str, start_date: str, end_date: str, timeframe: str = "1h") -> List[MarketData]:
+    """Fetch REAL market data from Kraken API (no geo restrictions)."""
     try:
-        # Convert symbol format
-        binance_symbol = symbol.replace("/", "").upper()
+        # Normalize symbol for Kraken (BTC/USDT -> XBTUSDT)
+        symbol_map = {
+            "BTC/USDT": "XBTUSDT",
+            "BTC/USD": "XBTUSD",
+            "ETH/USDT": "ETHUSDT",
+            "ETH/USD": "ETHUSD",
+        }
+        kraken_symbol = symbol_map.get(symbol.upper(), symbol.replace("/", "").upper())
         
         # Convert dates to timestamps
-        start_ts = int(datetime.fromisoformat(start_date).timestamp() * 1000)
-        end_ts = int(datetime.fromisoformat(end_date).timestamp() * 1000)
+        start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+        start_ts = int(start_dt.timestamp())
         
-        url = f"{BINANCE_API}/klines"
-        all_data = []
+        # Kraken OHLC data
+        url = f"{KRAKEN_API}/OHLC"
+        params = {
+            "pair": kraken_symbol,
+            "interval": 60,  # 1 hour
+            "since": start_ts,
+        }
         
-        current_ts = start_ts
-        while current_ts < end_ts:
-            params = {
-                "symbol": binance_symbol,
-                "interval": timeframe,
-                "startTime": current_ts,
-                "limit": 1000,
-            }
-            
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            klines = response.json()
-            
-            if not klines:
-                break
-            
-            for kline in klines:
-                all_data.append(MarketData(
-                    timestamp=datetime.fromtimestamp(kline[0] / 1000),
-                    open=float(kline[1]),
-                    high=float(kline[2]),
-                    low=float(kline[3]),
-                    close=float(kline[4]),
-                    volume=float(kline[5]),
-                ))
-            
-            # Move to next batch
-            current_ts = klines[-1][0] + 1
-            if len(klines) < 1000:
-                break
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
         
-        return all_data
+        if "error" in data and data["error"]:
+            raise Exception(f"Kraken API error: {data['error']}")
+        
+        result_key = list(data.get("result", {}).keys())[0] if data.get("result") else None
+        if not result_key:
+            print(f"⚠️ Kraken: No result key found for {symbol}")
+            return []
+            
+        ohlc_data = data.get("result", {}).get(result_key, [])
+        
+        market_data = []
+        end_ts = int(end_dt.timestamp())
+        
+        for candle in ohlc_data:
+            # Kraken format: [time, open, high, low, close, vwap, volume, count]
+            if isinstance(candle, list) and len(candle) >= 7:
+                candle_time = int(candle[0])
+                # Filter by time range
+                if start_ts <= candle_time <= end_ts:
+                    try:
+                        ts = datetime.fromtimestamp(candle_time)
+                        market_data.append(MarketData(
+                            timestamp=ts,
+                            open=float(candle[1]),
+                            high=float(candle[2]),
+                            low=float(candle[3]),
+                            close=float(candle[4]),
+                            volume=float(candle[6]),  # Volume is at index 6
+                        ))
+                    except (ValueError, IndexError) as e:
+                        print(f"Error parsing Kraken candle: {e}")
+                        continue
+        
+        if market_data:
+            print(f"✅ Kraken: Fetched {len(market_data)} candles for {symbol}")
+        else:
+            print(f"⚠️ Kraken: No data returned for {symbol}")
+        return sorted(market_data, key=lambda x: x.timestamp) if market_data else []
     except Exception as e:
-        print(f"Error fetching Binance data: {e}")
+        print(f"❌ Error fetching Kraken data: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
@@ -344,18 +367,15 @@ async def root():
         "docs": "/docs",
         "data_sources": {
             "hyperliquid": f"{HYPERLIQUID_API}",
-            "binance": f"{BINANCE_API}",
-            "binance_futures": f"{BINANCE_FUTURES_API}",
-            "coinbase": f"{COINBASE_API}",
             "kraken": f"{KRAKEN_API}",
+            "coinbase": f"{COINBASE_API}",
             "polymarket_ws": f"{POLYMARKET_WS}",
         },
-        "note": "Public APIs available - trading APIs require authentication",
+        "note": "Public APIs - no geo restrictions, no API keys needed for market data",
         "trading_exchanges": [
             "Hyperliquid (perps) - configured",
+            "Kraken - add API keys for trading (no geo restrictions)",
             "Coinbase Advanced Trade - add API keys for trading",
-            "Kraken - add API keys for trading",
-            "Binance - add API keys for trading",
         ],
     }
 
@@ -595,11 +615,11 @@ async def run_backtest_async(job_id: str, request: BacktestRequest):
                 request.end_date,
             )
         else:
-            market_data = fetch_binance_market_data(
-                request.market,
-                request.start_date,
-                request.end_date,
-            )
+                market_data = fetch_kraken_market_data(
+                    request.market,
+                    request.start_date,
+                    request.end_date,
+                )
         
         if not market_data:
             raise ValueError("No market data available")
@@ -770,7 +790,7 @@ User command: {cmd_text}"""
 
 @app.get("/api/terminal/chart/data")
 async def get_terminal_chart_data(symbol: str = "BTC/USDT", interval: str = "1h", limit: int = 100):
-    """Get OHLCV data for terminal chart - REAL DATA from Hyperliquid/Binance."""
+    """Get OHLCV data for terminal chart - REAL DATA from Hyperliquid/Kraken."""
     end_date = datetime.now()
     days = max(limit / 24, 30)  # At least 30 days
     start_date = end_date - timedelta(days=days)
@@ -780,15 +800,15 @@ async def get_terminal_chart_data(symbol: str = "BTC/USDT", interval: str = "1h"
     # Try Hyperliquid first (real data)
     data = fetch_hyperliquid_market_data(symbol, start_date.isoformat(), end_date.isoformat())
     
-    # Fallback to Binance if Hyperliquid fails (real data)
+    # Fallback to Kraken if Hyperliquid fails (real data, no geo restrictions)
     if not data or len(data) == 0:
-        print(f"⚠️ Hyperliquid returned no data for {symbol}, trying Binance fallback...")
+        print(f"⚠️ Hyperliquid returned no data for {symbol}, trying Kraken fallback...")
         try:
-            data = fetch_binance_market_data(symbol, start_date.isoformat(), end_date.isoformat(), interval)
+            data = fetch_kraken_market_data(symbol, start_date.isoformat(), end_date.isoformat(), interval)
             if data:
-                print(f"✅ Binance fallback: Got {len(data)} candles")
+                print(f"✅ Kraken fallback: Got {len(data)} candles")
         except Exception as e:
-            print(f"❌ Binance fallback also failed: {e}")
+            print(f"❌ Kraken fallback also failed: {e}")
     
     # Return real data in chart format
     chart_data = [
@@ -914,16 +934,21 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"   ⚠️  Hyperliquid API: {e}")
     
-    # Test Binance
+    # Test Kraken (no geo restrictions)
     try:
-        test_response = requests.get(f"{BINANCE_API}/ticker/24hr?symbol=BTCUSDT", timeout=5)
+        test_response = requests.get(f"{KRAKEN_API}/Ticker?pair=XBTUSD", timeout=5)
         if test_response.status_code == 200:
-            price = float(test_response.json()["lastPrice"])
-            print(f"   ✅ Binance API: Connected (BTC: ${price:,.2f})")
+            data = test_response.json()
+            if "result" in data:
+                result_key = list(data["result"].keys())[0]
+                price = float(data["result"][result_key]["c"][0])
+                print(f"   ✅ Kraken API: Connected (BTC: ${price:,.2f})")
+            else:
+                print(f"   ⚠️  Kraken API: Unexpected response format")
         else:
-            print(f"   ⚠️  Binance API: Status {test_response.status_code}")
+            print(f"   ⚠️  Kraken API: Status {test_response.status_code}")
     except Exception as e:
-        print(f"   ⚠️  Binance API: {e}")
+        print(f"   ⚠️  Kraken API: {e}")
     
     print("")
     port = int(os.environ.get("PORT", 8000))
