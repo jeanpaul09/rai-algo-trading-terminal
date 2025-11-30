@@ -334,8 +334,17 @@ async def root():
             "hyperliquid": f"{HYPERLIQUID_API}",
             "binance": f"{BINANCE_API}",
             "binance_futures": f"{BINANCE_FUTURES_API}",
+            "coinbase": f"{COINBASE_API}",
+            "kraken": f"{KRAKEN_API}",
+            "polymarket_ws": f"{POLYMARKET_WS}",
         },
-        "note": "All APIs are PUBLIC - no API keys needed",
+        "note": "Public APIs available - trading APIs require authentication",
+        "trading_exchanges": [
+            "Hyperliquid (perps) - configured",
+            "Coinbase Advanced Trade - add API keys for trading",
+            "Kraken - add API keys for trading",
+            "Binance - add API keys for trading",
+        ],
     }
 
 
