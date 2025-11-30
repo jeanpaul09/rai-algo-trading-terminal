@@ -1,6 +1,6 @@
 "use client"
 
-// BULLETPROOF Chart - Tested and Working
+// BULLETPROOF Chart - Fixed Line by Line
 import { useEffect, useRef, useState } from "react"
 import type { OHLCVData, ChartAnnotation } from "@/lib/types"
 import { Card } from "@/components/ui/card"
@@ -29,26 +29,19 @@ export function AnnotatedChart({
   const [chartError, setChartError] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [libraryLoaded, setLibraryLoaded] = useState(false)
+  const initAttemptedRef = useRef(false) // Track if we've attempted initialization
 
   const filteredAnnotations = strategyFilter
     ? annotations.filter((a) => a.strategy === strategyFilter)
     : annotations
 
-  // Load lightweight-charts library dynamically
+  // Load lightweight-charts library dynamically - RUNS FIRST
   useEffect(() => {
     if (libraryLoaded) return
 
     async function loadLibrary() {
       try {
-        // Test if it's already loaded
-        if (typeof window !== 'undefined' && (window as any).LightweightCharts) {
-          setLibraryLoaded(true)
-          return
-        }
-
-        // Dynamic import
         const lwc = await import("lightweight-charts")
-        // Store globally for debugging
         if (typeof window !== 'undefined') {
           (window as any).LightweightCharts = lwc
         }
@@ -63,43 +56,74 @@ export function AnnotatedChart({
     loadLibrary()
   }, [libraryLoaded])
 
-  // Initialize chart
+  // Initialize chart - ONLY RUNS ONCE when library is loaded
   useEffect(() => {
-    if (!libraryLoaded || isInitialized || !chartContainerRef.current) return
+    // Don't initialize if library isn't loaded
+    if (!libraryLoaded) {
+      console.log('⏳ Waiting for library to load...')
+      return
+    }
+
+    // Don't initialize if already initialized
+    if (isInitialized) {
+      console.log('✅ Chart already initialized')
+      return
+    }
+
+    // Don't initialize if container ref doesn't exist
+    if (!chartContainerRef.current) {
+      console.log('⏳ Waiting for container ref...')
+      return
+    }
 
     const container = chartContainerRef.current
-    
-    // CRITICAL: Wait for container to have valid dimensions
-    // The assertion error happens when dimensions are 0 or invalid
+
+    // Check dimensions
     const containerWidth = container.clientWidth
     const containerHeight = container.clientHeight || height || 500
     
-    console.log(`Container dimensions: ${containerWidth}x${containerHeight}`)
-    
-    if (containerWidth === 0) {
-      console.log('⚠️ Container has zero width, waiting...')
-      const checkDimensions = setInterval(() => {
-        if (container.clientWidth > 0) {
-          clearInterval(checkDimensions)
-          console.log(`✅ Container now has width: ${container.clientWidth}`)
-          setIsInitialized(false) // Retry initialization
+    console.log(`Container check: ${containerWidth}x${containerHeight}`)
+
+    // If width is 0, wait a bit and retry (but only once)
+    if (containerWidth === 0 && !initAttemptedRef.current) {
+      console.log('⚠️ Container has zero width, waiting 200ms...')
+      const timeout = setTimeout(() => {
+        if (chartContainerRef.current && chartContainerRef.current.clientWidth > 0) {
+          console.log(`✅ Container now has width: ${chartContainerRef.current.clientWidth}`)
+          initAttemptedRef.current = false // Reset to allow retry
+        } else {
+          console.error('❌ Container still has zero width after wait')
+          setChartError('Chart container has no width - check CSS/layout')
         }
-      }, 100)
-      return () => clearInterval(checkDimensions)
+      }, 200)
+      return () => clearTimeout(timeout)
     }
+
+    // Prevent double initialization
+    if (initAttemptedRef.current) {
+      console.log('⏳ Initialization already attempted, skipping...')
+      return
+    }
+
+    initAttemptedRef.current = true
 
     async function initChart() {
       try {
-        console.log('🚀 Creating chart...')
+        console.log('🚀 Starting chart initialization...')
         
         const { createChart, ColorType } = await import("lightweight-charts")
         
-        // Create chart - ensure proper dimensions and visibility
-        const chartWidth = container.clientWidth || 800
-        const chartHeight = height || 500
+        // Get final dimensions
+        const finalWidth = container.clientWidth || 800
+        const finalHeight = height || 500
+
+        if (finalWidth <= 0 || finalHeight <= 0) {
+          throw new Error(`Invalid dimensions: ${finalWidth}x${finalHeight}`)
+        }
+
+        console.log(`Creating chart with dimensions: ${finalWidth}x${finalHeight}`)
         
-        console.log(`Creating chart: ${chartWidth}x${chartHeight}`)
-        
+        // Create chart with minimal options first to avoid assertion errors
         const chart = createChart(container, {
           layout: {
             background: { type: ColorType.Solid, color: "#000000" },
@@ -107,53 +131,27 @@ export function AnnotatedChart({
             fontSize: 12,
           },
           grid: {
-            vertLines: { 
-              color: "#1f2937",
-              visible: true,
-              style: 0, // Solid
-            },
-            horzLines: { 
-              color: "#1f2937",
-              visible: true,
-              style: 0, // Solid
-            },
+            vertLines: { color: "#1f2937", visible: true },
+            horzLines: { color: "#1f2937", visible: true },
           },
-          width: chartWidth,
-          height: chartHeight,
+          width: finalWidth,
+          height: finalHeight,
           timeScale: {
             timeVisible: true,
             secondsVisible: false,
-            borderColor: "#374151",
-            rightOffset: 12,
-            barSpacing: 2,
-            minBarSpacing: 1,
           },
           rightPriceScale: {
-            borderColor: "#374151",
             visible: true,
-            scaleMargins: {
-              top: 0.1,
-              bottom: 0.1,
-            },
-          },
-          crosshair: {
-            mode: 0, // Normal
           },
         })
 
         chartRef.current = chart
         console.log('✅ Chart object created')
 
-        // CRITICAL: Ensure container has valid dimensions before adding series
-        // The assertion error happens when dimensions are invalid
-        if (chartWidth <= 0 || chartHeight <= 0) {
-          throw new Error(`Invalid chart dimensions: ${chartWidth}x${chartHeight}`)
-        }
-
-        // Add candlestick series - use minimal options to avoid assertion errors
+        // Add candlestick series - this is where assertion errors happen
         let candlestickSeries
         try {
-          console.log('Attempting to add candlestick series...')
+          console.log('Adding candlestick series...')
           candlestickSeries = chart.addSeries('Candlestick', {
             upColor: "#10b981",
             downColor: "#ef4444",
@@ -166,29 +164,33 @@ export function AnnotatedChart({
             throw new Error('addSeries returned null/undefined')
           }
           
-          console.log('✅ Candlestick series created successfully')
-        } catch (seriesError) {
-          console.error('❌ Error creating candlestick series:', seriesError)
-          // Try with minimal options
+          console.log('✅ Candlestick series created')
+        } catch (seriesError: any) {
+          console.error('❌ Error creating series:', seriesError)
+          // Try with absolutely minimal options
           try {
             console.log('Retrying with minimal options...')
             candlestickSeries = chart.addSeries('Candlestick', {})
+            if (!candlestickSeries) {
+              throw new Error('Minimal addSeries also returned null')
+            }
             console.log('✅ Series created with minimal options')
-          } catch (retryError) {
-            console.error('❌ Retry also failed:', retryError)
-            throw new Error(`Failed to create series: ${seriesError instanceof Error ? seriesError.message : String(seriesError)}`)
+          } catch (retryError: any) {
+            console.error('❌ Retry failed:', retryError)
+            throw new Error(`Cannot create chart series: ${retryError?.message || String(retryError)}`)
           }
         }
 
         seriesRef.current = candlestickSeries
         setIsInitialized(true)
-        console.log('✅ Chart fully initialized')
+        setChartError(null)
+        console.log('✅ Chart fully initialized and ready for data')
 
         // Handle resize
         const handleResize = () => {
-          if (container && chart) {
+          if (container && chartRef.current) {
             try {
-              chart.applyOptions({ width: container.clientWidth })
+              chartRef.current.applyOptions({ width: container.clientWidth })
             } catch (e) {
               console.warn('Resize error:', e)
             }
@@ -200,19 +202,24 @@ export function AnnotatedChart({
         return () => {
           window.removeEventListener("resize", handleResize)
           try {
-            if (chart) chart.remove()
+            if (chartRef.current) {
+              chartRef.current.remove()
+            }
           } catch (e) {
             console.warn('Cleanup error:', e)
           }
         }
       } catch (error) {
         console.error("❌ Chart initialization error:", error)
-        setChartError(`Chart init failed: ${error instanceof Error ? error.message : String(error)}`)
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        setChartError(`Chart initialization failed: ${errorMsg}`)
+        initAttemptedRef.current = false // Allow retry
       }
     }
 
     initChart()
 
+    // Cleanup function
     return () => {
       if (chartRef.current) {
         try {
@@ -224,24 +231,30 @@ export function AnnotatedChart({
         seriesRef.current = null
       }
     }
-  }, [libraryLoaded, isInitialized, height])
+  }, [libraryLoaded, isInitialized, height]) // Only depend on libraryLoaded, isInitialized, height
 
-  // Update data when it changes
+  // Update data when it changes - RUNS WHEN DATA CHANGES
   useEffect(() => {
-    if (!seriesRef.current || !data || data.length === 0) {
-      if (data && data.length === 0) {
-        console.log('⏳ No data to display yet')
+    // Can't update if series isn't ready
+    if (!seriesRef.current) {
+      if (data.length > 0) {
+        console.log('⏳ Waiting for chart series to be ready before setting data...')
       }
+      return
+    }
+
+    // Can't update if no data
+    if (!data || data.length === 0) {
       return
     }
 
     try {
       console.log(`📊 Updating chart with ${data.length} candles`)
       
-      // Validate and format data
+      // Format data for lightweight-charts
       const formattedData = data
         .map((d, index) => {
-          // Handle time conversion
+          // Convert time to Unix timestamp (seconds)
           let timeValue: number
           if (typeof d.time === 'number') {
             timeValue = d.time
@@ -252,7 +265,7 @@ export function AnnotatedChart({
             timeValue = Math.floor(Date.now() / 1000) - (data.length - index) * 3600
           }
 
-          // Validate OHLC values
+          // Validate OHLC
           const open = Number(d.open)
           const high = Number(d.high)
           const low = Number(d.low)
@@ -260,71 +273,62 @@ export function AnnotatedChart({
 
           // Skip invalid candles
           if (!open || !high || !low || !close || isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
-            console.warn(`Invalid candle at index ${index}:`, d)
             return null
           }
 
-          // Ensure high >= low and prices are reasonable
+          // Ensure valid OHLC relationships
           if (high < low || open <= 0 || close <= 0) {
-            console.warn(`Invalid OHLC values at index ${index}:`, { open, high, low, close })
             return null
           }
 
-          // lightweight-charts expects time as Unix timestamp (seconds) or bar index
-          // We're using Unix timestamp
           return {
-            time: timeValue as any, // Cast to satisfy TypeScript - lightweight-charts accepts number
+            time: timeValue as any,
             open: open,
-            high: Math.max(high, open, close, low), // Ensure high is highest
-            low: Math.min(low, open, close, high),  // Ensure low is lowest
+            high: Math.max(high, open, close, low),
+            low: Math.min(low, open, close, high),
             close: close,
           }
         })
         .filter((d): d is { time: number; open: number; high: number; low: number; close: number } => d !== null)
 
-      if (formattedData.length > 0) {
-        console.log(`✅ Setting ${formattedData.length} valid candles on chart`)
-        console.log('First candle:', formattedData[0])
-        console.log('Last candle:', formattedData[formattedData.length - 1])
-        
-        // Set data on series
-        console.log('Calling setData with', formattedData.length, 'candles')
-        console.log('Sample candle:', formattedData[0])
-        // CRITICAL: Set data on series
-        seriesRef.current.setData(formattedData)
-        setChartError(null)
-        console.log('✅ Data set on series')
-        
-        // CRITICAL: fitContent MUST be called AFTER setData to make candles visible
-        // Use requestAnimationFrame to ensure DOM is updated
-        requestAnimationFrame(() => {
-          try {
-            if (chartRef.current && chartRef.current.timeScale) {
-              const timeScale = chartRef.current.timeScale()
-              if (timeScale && typeof timeScale.fitContent === 'function') {
-                timeScale.fitContent()
-                console.log('✅ Chart fitted to content - candles should be visible now')
-              } else {
-                console.warn('⚠️ fitContent method not found on timeScale')
-              }
-            }
-          } catch (e) {
-            console.error('❌ Error fitting content:', e)
-          }
-        })
-      } else {
+      if (formattedData.length === 0) {
         console.error('❌ No valid candles after formatting!')
-        setChartError('No valid chart data - all candles were invalid')
+        setChartError('All candles were invalid - check data format')
+        return
       }
+
+      console.log(`✅ Setting ${formattedData.length} valid candles`)
+      console.log('First candle:', formattedData[0])
+      console.log('Last candle:', formattedData[formattedData.length - 1])
+      
+      // Set data
+      seriesRef.current.setData(formattedData)
+      setChartError(null)
+      console.log('✅ Data set on chart')
+      
+      // Fit content to show candles - CRITICAL
+      requestAnimationFrame(() => {
+        try {
+          if (chartRef.current?.timeScale) {
+            const timeScale = chartRef.current.timeScale()
+            if (timeScale && typeof timeScale.fitContent === 'function') {
+              timeScale.fitContent()
+              console.log('✅ Chart fitted to content - candles should be visible')
+            }
+          }
+        } catch (e) {
+          console.error('❌ Error fitting content:', e)
+        }
+      })
     } catch (error) {
       console.error("❌ Error updating chart data:", error)
       setChartError(`Data update failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [data])
+  }, [data]) // Only depend on data
 
-  // Add annotations
+  // Add annotations - RUNS WHEN ANNOTATIONS CHANGE
   useEffect(() => {
-    if (!seriesRef.current || !showAnnotations || !isInitialized || !libraryLoaded) return
+    if (!seriesRef.current || !showAnnotations || !isInitialized) return
 
     const series = seriesRef.current
 
@@ -397,8 +401,9 @@ export function AnnotatedChart({
     if (priceLinesRef.current.length > 0) {
       console.log(`✅ Added ${priceLinesRef.current.length} price lines`)
     }
-  }, [filteredAnnotations, showAnnotations, isInitialized, libraryLoaded])
+  }, [filteredAnnotations, showAnnotations, isInitialized])
 
+  // Render
   return (
     <Card className="w-full bg-black border border-gray-800">
       <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/50">
@@ -417,17 +422,23 @@ export function AnnotatedChart({
       {chartError ? (
         <div className="p-8 text-center flex flex-col items-center justify-center gap-4" style={{ height: `${height}px` }}>
           <div className="text-destructive font-bold">⚠️ Chart Error</div>
-          <div className="text-sm text-muted-foreground max-w-md">{chartError}</div>
+          <div className="text-sm text-muted-foreground max-w-md font-mono text-left">{chartError}</div>
           <div className="text-xs text-muted-foreground space-y-1">
-            <p>Data received: {data.length} candles</p>
-            <p>Library loaded: {libraryLoaded ? 'Yes' : 'No'}</p>
-            <p>Initialized: {isInitialized ? 'Yes' : 'No'}</p>
+            <p>Data: {data.length} candles</p>
+            <p>Library: {libraryLoaded ? '✅' : '❌'}</p>
+            <p>Initialized: {isInitialized ? '✅' : '❌'}</p>
+            <p>Series: {seriesRef.current ? '✅' : '❌'}</p>
+            <p>Container: {chartContainerRef.current ? '✅' : '❌'}</p>
+            {chartContainerRef.current && (
+              <p>Dimensions: {chartContainerRef.current.clientWidth}x{chartContainerRef.current.clientHeight}</p>
+            )}
           </div>
           <button
             onClick={() => {
               setChartError(null)
               setIsInitialized(false)
               setLibraryLoaded(false)
+              initAttemptedRef.current = false
             }}
             className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
           >
@@ -445,17 +456,16 @@ export function AnnotatedChart({
         <div className="p-8 text-center text-muted-foreground flex items-center justify-center" style={{ height: `${height}px` }}>
           <div>
             <p className="mb-2">⏳ Waiting for chart data...</p>
-            <p className="text-xs">Backend API: {typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_API_URL || 'Not set' : 'Server'}</p>
+            <p className="text-xs">Library: ✅ | Initialized: {isInitialized ? '✅' : '⏳'}</p>
           </div>
         </div>
       ) : (
         <div 
           ref={chartContainerRef} 
           className="w-full bg-black" 
-          style={{ height: `${height}px`, minHeight: `${height}px` }}
+          style={{ height: `${height}px`, minHeight: `${height}px`, width: '100%' }}
         />
       )}
     </Card>
   )
 }
-

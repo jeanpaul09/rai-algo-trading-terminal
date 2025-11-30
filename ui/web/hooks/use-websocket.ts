@@ -28,6 +28,7 @@ export function useWebSocket({
   const shouldReconnectRef = useRef(reconnect)
   const reconnectAttemptsRef = useRef(0)
   const maxReconnectAttempts = 2 // Reduce attempts - fail fast and use polling
+  const [reconnectAttempts, setReconnectAttempts] = useState(0) // Expose to component
 
   const send = useCallback((data: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -95,17 +96,21 @@ export function useWebSocket({
         // Only reconnect if we haven't exceeded max attempts and should reconnect
         if (shouldReconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current += 1
+          setReconnectAttempts(reconnectAttemptsRef.current) // Update state
           // Exponential backoff: 1s, 2s, 4s, 8s, 16s
           const backoffDelay = Math.min(reconnectInterval * Math.pow(2, reconnectAttemptsRef.current - 1), 30000)
-          console.log(`🔌 WebSocket: Reconnecting in ${backoffDelay/1000}s (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`)
+          if (reconnectAttemptsRef.current <= 2) {
+            console.log(`🔌 WebSocket: Reconnecting in ${backoffDelay/1000}s (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`)
+          }
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
           }, backoffDelay)
         } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
           // Stop trying after max attempts, but don't spam console
           if (reconnectAttemptsRef.current === maxReconnectAttempts) {
-            console.warn("🔌 WebSocket: Stopped reconnecting after", maxReconnectAttempts, "attempts. Check backend WebSocket endpoint.")
+            console.warn("🔌 WebSocket: Stopped reconnecting after", maxReconnectAttempts, "attempts. Using polling fallback.")
           }
+          setReconnectAttempts(maxReconnectAttempts) // Update state for UI
         }
       }
     } catch (error) {
@@ -147,6 +152,7 @@ export function useWebSocket({
     send,
     connect,
     disconnect,
+    reconnectAttempts: reconnectAttemptsRef.current, // Expose attempt count
   }
 }
 

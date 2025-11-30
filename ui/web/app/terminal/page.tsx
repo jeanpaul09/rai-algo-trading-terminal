@@ -449,7 +449,15 @@ export default function TerminalPage() {
             )}
             {!isConnected && apiUrl && (
               <Badge variant="destructive" className="text-xs">
-                WebSocket Disconnected
+{isConnected ? (
+                  <Badge variant="default" className="bg-green-500/20 text-green-400 border-green-500/50">
+                    WebSocket Connected
+                  </Badge>
+                ) : reconnectAttempts >= 2 ? (
+                  <Badge variant="outline" className="border-gray-700 text-gray-400">
+                    Using Polling
+                  </Badge>
+                ) : null}
               </Badge>
             )}
           </div>
