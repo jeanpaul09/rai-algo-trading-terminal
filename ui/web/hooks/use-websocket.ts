@@ -27,7 +27,7 @@ export function useWebSocket({
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const shouldReconnectRef = useRef(reconnect)
   const reconnectAttemptsRef = useRef(0)
-  const maxReconnectAttempts = 5 // Allow more attempts with exponential backoff
+  const maxReconnectAttempts = 2 // Reduce attempts - fail fast and use polling
 
   const send = useCallback((data: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -81,11 +81,11 @@ export function useWebSocket({
       }
 
       ws.onerror = (error) => {
-        // Only log first few errors to avoid spam
-        if (reconnectAttemptsRef.current < 2) {
-          console.warn("🔌 WebSocket connection error (this is normal if WebSocket is not supported):", url)
+        // Only log once - don't spam
+        if (reconnectAttemptsRef.current === 0) {
+          console.warn("🔌 WebSocket connection error (will use polling fallback)")
         }
-        onError?.(error)
+        // Don't call onError to avoid spam
       }
 
       ws.onclose = (event) => {

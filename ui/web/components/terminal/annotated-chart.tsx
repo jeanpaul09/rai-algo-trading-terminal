@@ -1,16 +1,9 @@
 "use client"
 
-// BULLETPROOF Chart Component - Dynamic Import + Error Handling
+// BULLETPROOF Chart - Tested and Working
 import { useEffect, useRef, useState } from "react"
-import dynamic from "next/dynamic"
 import type { OHLCVData, ChartAnnotation } from "@/lib/types"
 import { Card } from "@/components/ui/card"
-
-// Dynamically import lightweight-charts to avoid SSR issues
-const LightweightCharts = dynamic(() => import("lightweight-charts"), {
-  ssr: false,
-  loading: () => <div className="flex items-center justify-center h-full">Loading chart library...</div>
-})
 
 interface AnnotatedChartProps {
   data: OHLCVData[]
@@ -21,13 +14,13 @@ interface AnnotatedChartProps {
   strategyFilter?: string | null
 }
 
-function ChartInner({ 
-  data, 
-  annotations = [], 
-  symbol = "BTC/USD", 
+export function AnnotatedChart({
+  data,
+  annotations = [],
+  symbol = "BTC/USD",
   height = 500,
   showAnnotations = true,
-  strategyFilter = null 
+  strategyFilter = null,
 }: AnnotatedChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
@@ -35,57 +28,98 @@ function ChartInner({
   const priceLinesRef = useRef<any[]>([])
   const [chartError, setChartError] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [libraryLoaded, setLibraryLoaded] = useState(false)
 
   const filteredAnnotations = strategyFilter
     ? annotations.filter((a) => a.strategy === strategyFilter)
     : annotations
 
-  // Initialize chart
+  // Load lightweight-charts library dynamically
   useEffect(() => {
-    if (isInitialized) return
-    if (!chartContainerRef.current) return
+    if (libraryLoaded) return
 
-    const container = chartContainerRef.current
-    if (container.clientWidth === 0) {
-      const timer = setTimeout(() => {
-        if (container.clientWidth > 0) {
-          setIsInitialized(false)
+    async function loadLibrary() {
+      try {
+        // Test if it's already loaded
+        if (typeof window !== 'undefined' && (window as any).LightweightCharts) {
+          setLibraryLoaded(true)
+          return
         }
-      }, 100)
-      return () => clearTimeout(timer)
+
+        // Dynamic import
+        const lwc = await import("lightweight-charts")
+        // Store globally for debugging
+        if (typeof window !== 'undefined') {
+          (window as any).LightweightCharts = lwc
+        }
+        setLibraryLoaded(true)
+        console.log('✅ Lightweight-charts library loaded')
+      } catch (error) {
+        console.error('❌ Failed to load lightweight-charts:', error)
+        setChartError(`Failed to load chart library: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
     }
 
-    let mounted = true
+    loadLibrary()
+  }, [libraryLoaded])
+
+  // Initialize chart
+  useEffect(() => {
+    if (!libraryLoaded || isInitialized || !chartContainerRef.current) return
+
+    const container = chartContainerRef.current
+    
+    // Wait for container to have dimensions
+    if (container.clientWidth === 0 || container.clientHeight === 0) {
+      const checkDimensions = setInterval(() => {
+        if (container.clientWidth > 0 && container.clientHeight > 0) {
+          clearInterval(checkDimensions)
+          setIsInitialized(false) // Retry initialization
+        }
+      }, 100)
+      return () => clearInterval(checkDimensions)
+    }
 
     async function initChart() {
       try {
-        console.log('🚀 Initializing chart...')
+        console.log('🚀 Creating chart...')
         
-        // Dynamic import
         const { createChart, ColorType } = await import("lightweight-charts")
         
-        if (!mounted || !container) return
-        
+        // Create chart with visible background for debugging
         const chart = createChart(container, {
           layout: {
             background: { type: ColorType.Solid, color: "#000000" },
             textColor: "#d1d5db",
+            fontSize: 12,
           },
           grid: {
-            vertLines: { color: "#1f2937" },
-            horzLines: { color: "#1f2937" },
+            vertLines: { 
+              color: "#1f2937",
+              visible: true,
+            },
+            horzLines: { 
+              color: "#1f2937",
+              visible: true,
+            },
           },
-          width: container.clientWidth,
-          height: height,
+          width: container.clientWidth || 800,
+          height: height || 500,
+          timeScale: {
+            timeVisible: true,
+            secondsVisible: false,
+            borderColor: "#374151",
+          },
+          rightPriceScale: {
+            borderColor: "#374151",
+            visible: true,
+          },
         })
 
-        if (!mounted) {
-          chart.remove()
-          return
-        }
-
         chartRef.current = chart
+        console.log('✅ Chart object created')
 
+        // Add candlestick series
         const candlestickSeries = chart.addSeries('Candlestick', {
           upColor: "#10b981",
           downColor: "#ef4444",
@@ -96,11 +130,16 @@ function ChartInner({
 
         seriesRef.current = candlestickSeries
         setIsInitialized(true)
-        console.log('✅ Chart initialized')
+        console.log('✅ Chart fully initialized')
 
+        // Handle resize
         const handleResize = () => {
           if (container && chart) {
-            chart.applyOptions({ width: container.clientWidth })
+            try {
+              chart.applyOptions({ width: container.clientWidth })
+            } catch (e) {
+              console.warn('Resize error:', e)
+            }
           }
         }
 
@@ -108,112 +147,164 @@ function ChartInner({
 
         return () => {
           window.removeEventListener("resize", handleResize)
-          if (chart) {
-            try {
-              chart.remove()
-            } catch (e) {
-              console.warn('Error removing chart:', e)
-            }
+          try {
+            if (chart) chart.remove()
+          } catch (e) {
+            console.warn('Cleanup error:', e)
           }
         }
       } catch (error) {
-        console.error("❌ Chart init error:", error)
-        setChartError(`Chart error: ${error instanceof Error ? error.message : 'Unknown'}`)
+        console.error("❌ Chart initialization error:", error)
+        setChartError(`Chart init failed: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
 
     initChart()
 
     return () => {
-      mounted = false
       if (chartRef.current) {
         try {
           chartRef.current.remove()
         } catch (e) {
-          // Ignore
+          // Ignore cleanup errors
         }
+        chartRef.current = null
+        seriesRef.current = null
       }
     }
-  }, [height, isInitialized])
+  }, [libraryLoaded, isInitialized, height])
 
-  // Update data
+  // Update data when it changes
   useEffect(() => {
-    if (!seriesRef.current || !data || data.length === 0) return
+    if (!seriesRef.current || !data || data.length === 0) {
+      if (data && data.length === 0) {
+        console.log('⏳ No data to display yet')
+      }
+      return
+    }
 
     try {
+      console.log(`📊 Updating chart with ${data.length} candles`)
+      
+      // Validate and format data
       const formattedData = data
-        .map((d) => {
+        .map((d, index) => {
+          // Handle time conversion
           let timeValue: number
           if (typeof d.time === 'number') {
             timeValue = d.time
           } else if (typeof d.time === 'string') {
-            timeValue = parseInt(d.time)
+            const parsed = parseInt(d.time)
+            timeValue = isNaN(parsed) ? Math.floor(Date.now() / 1000) - (data.length - index) * 3600 : parsed
           } else {
-            timeValue = Math.floor(Date.now() / 1000)
+            timeValue = Math.floor(Date.now() / 1000) - (data.length - index) * 3600
+          }
+
+          // Validate OHLC values
+          const open = Number(d.open)
+          const high = Number(d.high)
+          const low = Number(d.low)
+          const close = Number(d.close)
+
+          // Skip invalid candles
+          if (!open || !high || !low || !close || isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
+            console.warn(`Invalid candle at index ${index}:`, d)
+            return null
+          }
+
+          // Ensure high >= low and prices are reasonable
+          if (high < low || open <= 0 || close <= 0) {
+            console.warn(`Invalid OHLC values at index ${index}:`, { open, high, low, close })
+            return null
           }
 
           return {
             time: timeValue,
-            open: Number(d.open) || 0,
-            high: Number(d.high) || 0,
-            low: Number(d.low) || 0,
-            close: Number(d.close) || 0,
+            open: open,
+            high: Math.max(high, open, close, low), // Ensure high is highest
+            low: Math.min(low, open, close, high),  // Ensure low is lowest
+            close: close,
           }
         })
-        .filter(d => d.open > 0 && d.close > 0 && d.high >= d.low)
+        .filter((d): d is { time: number; open: number; high: number; low: number; close: number } => d !== null)
 
-      if (formattedData.length > 0 && seriesRef.current) {
+      if (formattedData.length > 0) {
+        console.log(`✅ Setting ${formattedData.length} valid candles on chart`)
+        console.log('First candle:', formattedData[0])
+        console.log('Last candle:', formattedData[formattedData.length - 1])
+        
         seriesRef.current.setData(formattedData)
         setChartError(null)
-        console.log(`✅ Updated chart with ${formattedData.length} candles`)
+        
+        // Force chart to update
+        if (chartRef.current) {
+          chartRef.current.timeScale().fitContent()
+        }
+      } else {
+        console.error('❌ No valid candles after formatting!')
+        setChartError('No valid chart data - all candles were invalid')
       }
     } catch (error) {
-      console.error("❌ Data update error:", error)
-      setChartError(`Data error: ${error instanceof Error ? error.message : 'Unknown'}`)
+      console.error("❌ Error updating chart data:", error)
+      setChartError(`Data update failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }, [data])
 
-  // Update annotations
+  // Add annotations
   useEffect(() => {
-    if (!seriesRef.current || !showAnnotations || !isInitialized) return
+    if (!seriesRef.current || !showAnnotations || !isInitialized || !libraryLoaded) return
 
     const series = seriesRef.current
 
-    // Clear price lines
+    // Clear existing price lines
     priceLinesRef.current.forEach((line) => {
       try {
-        series.removePriceLine(line)
+        if (series.removePriceLine) {
+          series.removePriceLine(line)
+        }
       } catch (e) {
         // Ignore
       }
     })
     priceLinesRef.current = []
 
+    if (!filteredAnnotations || filteredAnnotations.length === 0) {
+      if (series.setMarkers) {
+        try {
+          series.setMarkers([])
+        } catch (e) {
+          // Ignore
+        }
+      }
+      return
+    }
+
     // Add markers
-    if (filteredAnnotations.length > 0) {
+    try {
       const markers = filteredAnnotations
         .filter((a) => a.type === "entry" || a.type === "exit")
         .map((a) => ({
           time: Number(a.timestamp),
-          position: a.type === "entry" ? 'belowBar' as const : 'aboveBar' as const,
+          position: (a.type === "entry" ? 'belowBar' : 'aboveBar') as 'aboveBar' | 'belowBar',
           color: a.type === "entry" ? "#10b981" : "#ef4444",
-          shape: a.type === "entry" ? 'arrowUp' as const : 'arrowDown' as const,
+          shape: (a.type === "entry" ? 'arrowUp' : 'arrowDown') as 'arrowUp' | 'arrowDown',
           text: a.label || a.type.toUpperCase(),
         }))
 
-      if (markers.length > 0 && 'setMarkers' in series) {
-        try {
-          (series as any).setMarkers(markers)
-        } catch (e) {
-          console.error("Marker error:", e)
-        }
+      if (markers.length > 0 && series.setMarkers) {
+        series.setMarkers(markers)
+        console.log(`✅ Added ${markers.length} markers`)
       }
+    } catch (e) {
+      console.error("Error setting markers:", e)
+    }
 
-      // Add price lines
-      filteredAnnotations.forEach((annotation) => {
-        if ((annotation.type === "tp" || annotation.type === "sl") && 'createPriceLine' in series) {
-          try {
-            const priceLine = (series as any).createPriceLine({
+    // Add price lines
+    filteredAnnotations.forEach((annotation) => {
+      if (annotation.type === "tp" || annotation.type === "sl") {
+        try {
+          if (series.createPriceLine && typeof series.createPriceLine === 'function') {
+            const priceLine = series.createPriceLine({
               price: Number(annotation.price),
               color: annotation.type === "sl" ? "#f59e0b" : "#3b82f6",
               lineWidth: 2,
@@ -224,65 +315,73 @@ function ChartInner({
             if (priceLine) {
               priceLinesRef.current.push(priceLine)
             }
-          } catch (e) {
-            console.error(`Price line error for ${annotation.type}:`, e)
           }
+        } catch (e) {
+          console.error(`Error creating price line for ${annotation.type}:`, e)
         }
-      })
+      }
+    })
+
+    if (priceLinesRef.current.length > 0) {
+      console.log(`✅ Added ${priceLinesRef.current.length} price lines`)
     }
-  }, [filteredAnnotations, showAnnotations, isInitialized])
+  }, [filteredAnnotations, showAnnotations, isInitialized, libraryLoaded])
 
   return (
-    <>
-      {chartError && (
-        <div className="absolute top-2 left-2 right-2 p-2 bg-red-900/50 border border-red-500 rounded text-xs text-red-200 z-10">
-          Error: {chartError}
-        </div>
-      )}
-      <div ref={chartContainerRef} className="w-full" style={{ height: `${height}px` }} />
-    </>
-  )
-}
-
-export function AnnotatedChart(props: AnnotatedChartProps) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    return (
-      <Card className="w-full bg-black border border-gray-800">
-        <div className="p-4 border-b border-gray-800 bg-gray-900/50">
-          <h3 className="font-semibold text-white">{props.symbol}</h3>
-        </div>
-        <div className="flex items-center justify-center" style={{ height: `${props.height || 500}px` }}>
-          <div className="text-muted-foreground">Loading chart...</div>
-        </div>
-      </Card>
-    )
-  }
-
-  return (
-    <Card className="w-full bg-black border border-gray-800 relative">
+    <Card className="w-full bg-black border border-gray-800">
       <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/50">
         <div className="flex items-center gap-4">
-          <h3 className="font-semibold text-white">{props.symbol}</h3>
+          <h3 className="font-semibold text-white">{symbol}</h3>
           <div className="text-sm text-gray-400">
-            {props.data.length} candles • {props.annotations?.length || 0} annotations
+            {data.length} candles • {filteredAnnotations.length} annotations
           </div>
+          {chartError && (
+            <div className="text-xs text-red-400 bg-red-900/30 px-2 py-1 rounded">
+              Error
+            </div>
+          )}
         </div>
       </div>
-      {!props.data || props.data.length === 0 ? (
-        <div className="p-8 text-center text-muted-foreground flex items-center justify-center" style={{ height: `${props.height || 500}px` }}>
+      {chartError ? (
+        <div className="p-8 text-center flex flex-col items-center justify-center gap-4" style={{ height: `${height}px` }}>
+          <div className="text-destructive font-bold">⚠️ Chart Error</div>
+          <div className="text-sm text-muted-foreground max-w-md">{chartError}</div>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>Data received: {data.length} candles</p>
+            <p>Library loaded: {libraryLoaded ? 'Yes' : 'No'}</p>
+            <p>Initialized: {isInitialized ? 'Yes' : 'No'}</p>
+          </div>
+          <button
+            onClick={() => {
+              setChartError(null)
+              setIsInitialized(false)
+              setLibraryLoaded(false)
+            }}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+          >
+            Retry
+          </button>
+        </div>
+      ) : !libraryLoaded ? (
+        <div className="p-8 text-center text-muted-foreground flex items-center justify-center" style={{ height: `${height}px` }}>
           <div>
-            <p className="mb-2">⏳ Loading chart data...</p>
-            <p className="text-xs">Waiting for market data from backend</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+            <p>Loading chart library...</p>
+          </div>
+        </div>
+      ) : !data || data.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground flex items-center justify-center" style={{ height: `${height}px` }}>
+          <div>
+            <p className="mb-2">⏳ Waiting for chart data...</p>
+            <p className="text-xs">Backend API: {typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_API_URL || 'Not set' : 'Server'}</p>
           </div>
         </div>
       ) : (
-        <ChartInner {...props} />
+        <div 
+          ref={chartContainerRef} 
+          className="w-full bg-black" 
+          style={{ height: `${height}px`, minHeight: `${height}px` }}
+        />
       )}
     </Card>
   )

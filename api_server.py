@@ -820,17 +820,27 @@ async def get_terminal_chart_data(symbol: str = "BTC/USDT", interval: str = "1h"
             print(f"❌ Kraken fallback also failed: {e}")
     
     # Return real data in chart format
-    chart_data = [
-        {
-            "time": int(d.timestamp.timestamp()),
-            "open": d.open,
-            "high": d.high,
-            "low": d.low,
-            "close": d.close,
-            "volume": d.volume,
-        }
-        for d in (data[-limit:] if data else [])
-    ]
+    # IMPORTANT: time must be Unix timestamp (seconds since epoch) for lightweight-charts
+    chart_data = []
+    if data:
+        for d in data[-limit:]:
+            try:
+                # Convert datetime to Unix timestamp (seconds)
+                timestamp_seconds = int(d.timestamp.timestamp())
+                
+                # Validate data
+                if d.open > 0 and d.close > 0 and d.high >= d.low:
+                    chart_data.append({
+                        "time": timestamp_seconds,
+                        "open": float(d.open),
+                        "high": float(d.high),
+                        "low": float(d.low),
+                        "close": float(d.close),
+                        "volume": float(d.volume) if d.volume else 0.0,
+                    })
+            except Exception as e:
+                print(f"⚠️ Error formatting candle data: {e}, skipping candle")
+                continue
     
     # Log for debugging
     if chart_data:
