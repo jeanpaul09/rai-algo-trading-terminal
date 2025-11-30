@@ -206,7 +206,12 @@ export async function fetchPerformanceComparison(
  * Get WebSocket URL for real-time updates
  */
 export function getWebSocketURL(): string {
-  const wsProtocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss:" : "ws:"
+  if (!USE_BACKEND || !API_BASE_URL) {
+    // Return a dummy URL when no backend is configured (won't connect)
+    return "ws://localhost:8000/ws/terminal"
+  }
+  
+  const wsProtocol = API_BASE_URL.startsWith("https") ? "wss:" : "ws:"
   const baseURL = API_BASE_URL.replace(/^https?:/, "")
   return `${wsProtocol}${baseURL}/ws/terminal`
 }
