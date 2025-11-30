@@ -33,6 +33,7 @@ export function AnnotatedChart({
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const priceLinesRef = useRef<any[]>([])
+  const [chartError, setChartError] = useState<string | null>(null)
 
   // Filter annotations by strategy if filter is set
   const filteredAnnotations = strategyFilter
@@ -79,20 +80,24 @@ export function AnnotatedChart({
             wickDownColor: "#ef4444",
           })
         } else {
-          // If addSeries doesn't exist, log error and return
-          console.error('❌ addSeries not found on chart object')
-          console.error('Available methods:', Object.getOwnPropertyNames(chart).filter(m => 
+          // If addSeries doesn't exist, log error and show fallback
+          const availableMethods = Object.getOwnPropertyNames(chart).filter(m => 
             m.toLowerCase().includes('add') || m.toLowerCase().includes('series')
-          ))
+          )
+          console.error('❌ addSeries not found on chart object')
+          console.error('Available methods:', availableMethods)
+          setChartError('Chart API not available - addSeries method not found')
           return
         }
       } catch (error) {
         console.error('❌ Error creating candlestick series:', error)
+        setChartError(`Chart error: ${error instanceof Error ? error.message : 'Unknown error'}`)
         return
       }
 
       if (!candlestickSeries) {
         console.error('❌ Failed to create candlestick series - method returned undefined')
+        setChartError('Failed to create chart series')
         return
       }
 
@@ -125,6 +130,7 @@ export function AnnotatedChart({
       }
     } catch (error) {
       console.error("Error creating chart:", error)
+      setChartError(`Chart initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }, [])
 
@@ -245,7 +251,15 @@ export function AnnotatedChart({
           </div>
         )}
       </div>
-      <div ref={chartContainerRef} className="w-full" style={{ height: `${height}px` }} />
+      {chartError ? (
+        <div className="p-8 text-center text-muted-foreground" style={{ height: `${height}px` }}>
+          <p className="text-destructive mb-2">⚠️ Chart Error</p>
+          <p className="text-sm">{chartError}</p>
+          <p className="text-xs mt-2">Data: {data.length} candles available</p>
+        </div>
+      ) : (
+        <div ref={chartContainerRef} className="w-full" style={{ height: `${height}px` }} />
+      )}
     </Card>
   )
 }
