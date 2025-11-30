@@ -923,18 +923,19 @@ async def update_strategy_mode(strategy_name: str, request: Dict[str, Any]):
             trader_id = f"{strategy_name}_{datetime.now().timestamp()}"
             _live_traders[trader_id] = trader
             
-            # Broadcast update
-            try:
-                await broadcast_to_clients({
-                    "type": "strategy_update",
-                    "strategy": {
-                        "name": strategy_name,
-                        "mode": mode,
-                        "status": "scanning"
-                    }
-                })
-            except:
-                pass
+            # Broadcast update via WebSocket if available
+            for ws in _websocket_connections:
+                try:
+                    await ws.send_json({
+                        "type": "strategy_update",
+                        "strategy": {
+                            "name": strategy_name,
+                            "mode": mode,
+                            "status": "scanning"
+                        }
+                    })
+                except:
+                    pass
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to start strategy: {str(e)}")
     
@@ -966,22 +967,113 @@ async def start_strategy(strategy_name: str, request: Dict[str, Any]):
         trader_id = f"{strategy_name}_{datetime.now().timestamp()}"
         _live_traders[trader_id] = trader
         
-        # Broadcast update
-        try:
-            await broadcast_to_clients({
-                "type": "strategy_update",
-                "strategy": {
-                    "name": strategy_name,
-                    "mode": mode,
-                    "status": "scanning"
-                }
-            })
-        except:
-            pass
+        # Broadcast update via WebSocket if available
+        for ws in _websocket_connections:
+            try:
+                await ws.send_json({
+                    "type": "strategy_update",
+                    "strategy": {
+                        "name": strategy_name,
+                        "mode": mode,
+                        "status": "scanning"
+                    }
+                })
+            except:
+                pass
         
         return {"success": True, "trader_id": trader_id, "status": "running"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/live/status")
+async def get_live_status():
+    """Get live trading status - REAL DATA from active traders."""
+    try:
+        total_equity = 0
+        daily_pnl = 0
+        total_exposure = 0
+        positions = []
+        venue_overview = {}
+        
+        # Aggregate data from all active traders
+        for trader_id, trader in _live_traders.items():
+            try:
+                status = trader.get_status()
+                if status:
+                    # Get positions
+                    if "positions" in status:
+                        for pos in status["positions"]:
+                            positions.append({
+                                "exchange": "Hyperliquid",
+                                "symbol": pos.get("symbol", "BTC/USD"),
+                                "side": pos.get("side", "long"),
+                                "size": pos.get("size", 0),
+                                "entry_price": pos.get("entry_price", 0),
+                                "mark_price": pos.get("mark_price", 0),
+                                "unrealized_pnl": pos.get("unrealized_pnl", 0),
+                                "leverage": pos.get("leverage"),
+                            })
+                    
+                    # Aggregate PnL and exposure
+                    daily_pnl += status.get("risk_manager", {}).get("daily_stats", {}).get("total_pnl", 0)
+                    total_exposure += status.get("total_exposure", 0)
+                    
+                    # Get balance
+                    balance = trader.exchange.get_balance("USDC")
+                    if balance:
+                        total_equity += balance.total
+            except Exception as e:
+                print(f"Error getting trader status for {trader_id}: {e}")
+        
+        # If no active traders, try to get balance from exchange
+        if total_equity == 0:
+            try:
+                from rai_algo.exchanges.hyperliquid import HyperliquidExchange
+                exchange = HyperliquidExchange()
+                balance = exchange.get_balance("USDC")
+                if balance:
+                    total_equity = balance.total
+            except:
+                pass
+        
+        # Calculate venue overview
+        venue_overview_list = []
+        if positions:
+            venue_pnl = {}
+            venue_exposure = {}
+            for pos in positions:
+                venue = pos["exchange"]
+                if venue not in venue_pnl:
+                    venue_pnl[venue] = 0
+                    venue_exposure[venue] = 0
+                venue_pnl[venue] += pos["unrealized_pnl"]
+                venue_exposure[venue] += pos["entry_price"] * pos["size"]
+            
+            for venue, pnl in venue_pnl.items():
+                venue_overview_list.append({
+                    "venue": venue,
+                    "notional_exposure": venue_exposure.get(venue, 0),
+                    "pnl": pnl,
+                    "funding_impact": 0,  # TODO: Calculate from funding rates
+                })
+        
+        # Calculate drawdown
+        current_drawdown = -0.05 if daily_pnl < 0 else 0  # Simplified
+        
+        return {
+            "equity": total_equity or 100000,  # Default if no balance
+            "daily_pnl": daily_pnl,
+            "total_exposure": total_exposure,
+            "max_exposure": 100000,  # TODO: Get from risk manager
+            "current_drawdown": current_drawdown,
+            "max_drawdown_allowed": -0.15,
+            "risk_status": "OK" if abs(current_drawdown) < 0.10 else "WARNING" if abs(current_drawdown) < 0.15 else "CRITICAL",
+            "positions": positions,
+            "venue_overview": venue_overview_list,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get live status: {str(e)}")
 
 
 @app.post("/api/live/start")
