@@ -44,13 +44,28 @@ export function AnnotatedChart({
     : annotations
 
   useEffect(() => {
-    if (!chartContainerRef.current) return
+    if (!chartContainerRef.current) {
+      console.log('⏳ Chart container not ready')
+      return
+    }
     
-    // Don't initialize chart if no data
+    // Don't initialize chart if no data - but don't show error, just wait
     if (!data || data.length === 0) {
-      console.log('⏳ Waiting for chart data...')
+      console.log('⏳ Waiting for chart data... (have:', data?.length || 0, 'candles)')
       setChartError(null) // Clear error, just waiting for data
       return
+    }
+
+    // Make sure container has dimensions
+    if (chartContainerRef.current.clientWidth === 0 || chartContainerRef.current.clientHeight === 0) {
+      console.log('⏳ Chart container has no dimensions, waiting...')
+      // Try again after a short delay
+      const timer = setTimeout(() => {
+        if (chartContainerRef.current) {
+          console.log('Retrying chart initialization...')
+        }
+      }, 100)
+      return () => clearTimeout(timer)
     }
 
     // CRITICAL: Prevent any use of addCandlestickSeries (v4 API)
@@ -61,7 +76,19 @@ export function AnnotatedChart({
       return
     }
 
+    // Clean up existing chart if it exists
+    if (chartRef.current) {
+      try {
+        chartRef.current.remove()
+        chartRef.current = null
+        seriesRef.current = null
+      } catch (e) {
+        console.warn('Error cleaning up existing chart:', e)
+      }
+    }
+
     try {
+      console.log('🚀 Initializing chart with', data.length, 'candles...')
       // Create chart with premium styling
       const chart = createChart(chartContainerRef.current, {
         layout: {
@@ -168,18 +195,34 @@ export function AnnotatedChart({
 
       // Convert data format - only if we have data
       if (data && data.length > 0) {
-        const formattedData: CandlestickData[] = data.map((d) => ({
-          time: d.time as any,
-          open: d.open,
-          high: d.high,
-          low: d.low,
-          close: d.close,
-        }))
+        try {
+          const formattedData: CandlestickData[] = data.map((d) => {
+            // Ensure all required fields are numbers
+            const time = typeof d.time === 'number' ? d.time : (typeof d.time === 'string' ? parseInt(d.time) : Date.now() / 1000)
+            return {
+              time: time as any,
+              open: Number(d.open) || 0,
+              high: Number(d.high) || 0,
+              low: Number(d.low) || 0,
+              close: Number(d.close) || 0,
+            }
+          }).filter(d => d.open > 0 && d.close > 0) // Filter out invalid candles
 
-        candlestickSeries.setData(formattedData)
-        console.log(`✅ Chart initialized with ${formattedData.length} candles`)
+          if (formattedData.length > 0) {
+            candlestickSeries.setData(formattedData)
+            console.log(`✅ Chart initialized with ${formattedData.length} valid candles`)
+            setChartError(null) // Clear any previous errors
+          } else {
+            console.warn('⚠️ No valid candles after filtering')
+            setChartError('No valid chart data available')
+          }
+        } catch (dataError) {
+          console.error('❌ Error formatting chart data:', dataError)
+          setChartError(`Data format error: ${dataError instanceof Error ? dataError.message : 'Unknown'}`)
+        }
       } else {
         console.warn('⚠️ Chart created but no data to display yet')
+        setChartError('Waiting for chart data...')
       }
 
       // Handle resize
