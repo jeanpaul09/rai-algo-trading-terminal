@@ -63,12 +63,14 @@ export function AnnotatedChart({
 
     chartRef.current = chart
 
-      // Add candlestick series - lightweight-charts v5 API
-      // v5.0.9 uses addSeries with series type as first parameter
+      // Add candlestick series - lightweight-charts v5.0.9 API
+      // IMPORTANT: v5 uses addSeries('Candlestick', options) - NOT addCandlestickSeries
       let candlestickSeries
       try {
-        // Try v5 API first (addSeries with type)
+        // v5 API: addSeries with series type as first parameter
+        // Check if addSeries exists (v5) - this is the correct method
         if (typeof (chart as any).addSeries === 'function') {
+          console.log('Using addSeries (v5 API)')
           candlestickSeries = (chart as any).addSeries('Candlestick', {
             upColor: "#10b981",
             downColor: "#ef4444",
@@ -76,29 +78,25 @@ export function AnnotatedChart({
             wickUpColor: "#10b981",
             wickDownColor: "#ef4444",
           })
-        } else if (typeof (chart as any).addCandlestickSeries === 'function') {
-          // Fallback to v4 API
-          candlestickSeries = (chart as any).addCandlestickSeries({
-            upColor: "#10b981",
-            downColor: "#ef4444",
-            borderVisible: false,
-            wickUpColor: "#10b981",
-            wickDownColor: "#ef4444",
-          })
         } else {
-          console.error('Chart API error: No suitable method found')
+          // If addSeries doesn't exist, log error and return
+          console.error('❌ addSeries not found on chart object')
+          console.error('Available methods:', Object.getOwnPropertyNames(chart).filter(m => 
+            m.toLowerCase().includes('add') || m.toLowerCase().includes('series')
+          ))
           return
         }
       } catch (error) {
-        console.error('Error creating candlestick series:', error)
+        console.error('❌ Error creating candlestick series:', error)
         return
       }
 
       if (!candlestickSeries) {
-        console.error('Failed to create candlestick series')
+        console.error('❌ Failed to create candlestick series - method returned undefined')
         return
       }
 
+      console.log('✅ Candlestick series created successfully')
       seriesRef.current = candlestickSeries
 
       // Convert data format
