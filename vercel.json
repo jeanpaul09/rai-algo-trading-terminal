@@ -1,10 +1,6 @@
 {
-  "buildCommand": "cd ui/web && npm install && npm run build",
-  "outputDirectory": "ui/web/.next",
-  "installCommand": "cd ui/web && npm install",
-  "framework": "nextjs",
-  "rootDirectory": "ui/web",
-  "env": {
-    "NEXT_PUBLIC_API_URL": "https://web-production-e9cd4.up.railway.app"
-  }
+  "buildCommand": "npm install && npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "framework": "nextjs"
 }
