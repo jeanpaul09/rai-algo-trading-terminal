@@ -1,5 +1,8 @@
 "use client"
 
+// Chart component using lightweight-charts v5.0.9
+// CRITICAL: v5 uses addSeries('Candlestick', ...) NOT addCandlestickSeries
+
 import { useEffect, useRef, useState } from "react"
 import { 
   createChart, 
