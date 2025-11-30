@@ -7,7 +7,6 @@ import {
   IChartApi, 
   ISeriesApi, 
   CandlestickData,
-  CandlestickSeriesOptions,
   SeriesMarker
 } from "lightweight-charts"
 import type { OHLCVData, ChartAnnotation } from "@/lib/types"
@@ -43,12 +42,13 @@ export function AnnotatedChart({
   useEffect(() => {
     if (!chartContainerRef.current) return
 
-    // Create chart
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: "#000000" },
-        textColor: "#d1d5db",
-      },
+    try {
+      // Create chart
+      const chart = createChart(chartContainerRef.current, {
+        layout: {
+          background: { type: ColorType.Solid, color: "#000000" },
+          textColor: "#d1d5db",
+        },
       grid: {
         vertLines: { color: "#1f2937" },
         horzLines: { color: "#1f2937" },
@@ -63,41 +63,44 @@ export function AnnotatedChart({
 
     chartRef.current = chart
 
-    // Add candlestick series - lightweight-charts v5 API
-    // Note: TypeScript types may not match runtime API, using type assertion
-    const candlestickSeries = (chart as any).addCandlestickSeries({
-      upColor: "#10b981",
-      downColor: "#ef4444",
-      borderVisible: false,
-      wickUpColor: "#10b981",
-      wickDownColor: "#ef4444",
-    }) as ISeriesApi<"Candlestick">
+      // Add candlestick series - lightweight-charts v5 API
+      // Note: TypeScript types may not match runtime API, using type assertion
+      const candlestickSeries = (chart as any).addCandlestickSeries({
+        upColor: "#10b981",
+        downColor: "#ef4444",
+        borderVisible: false,
+        wickUpColor: "#10b981",
+        wickDownColor: "#ef4444",
+      }) as ISeriesApi<"Candlestick">
 
-    seriesRef.current = candlestickSeries
+      seriesRef.current = candlestickSeries
 
-    // Convert data format
-    const formattedData: CandlestickData[] = data.map((d) => ({
+      // Convert data format
+      const formattedData: CandlestickData[] = data.map((d) => ({
       time: d.time as any,
       open: d.open,
       high: d.high,
       low: d.low,
-      close: d.close,
-    }))
+        close: d.close,
+      }))
 
-    candlestickSeries.setData(formattedData)
+      candlestickSeries.setData(formattedData)
 
-    // Handle resize
-    const handleResize = () => {
-      if (chartContainerRef.current && chart) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth })
+      // Handle resize
+      const handleResize = () => {
+        if (chartContainerRef.current && chart) {
+          chart.applyOptions({ width: chartContainerRef.current.clientWidth })
+        }
       }
-    }
 
-    window.addEventListener("resize", handleResize)
+      window.addEventListener("resize", handleResize)
 
-    return () => {
-      window.removeEventListener("resize", handleResize)
-      chart.remove()
+      return () => {
+        window.removeEventListener("resize", handleResize)
+        chart.remove()
+      }
+    } catch (error) {
+      console.error("Error creating chart:", error)
     }
   }, [])
 
@@ -105,15 +108,19 @@ export function AnnotatedChart({
   useEffect(() => {
     if (!seriesRef.current || !data.length) return
 
-    const formattedData: CandlestickData[] = data.map((d) => ({
+    try {
+      const formattedData: CandlestickData[] = data.map((d) => ({
       time: d.time as any,
       open: d.open,
       high: d.high,
       low: d.low,
-      close: d.close,
-    }))
+        close: d.close,
+      }))
 
-    seriesRef.current.setData(formattedData)
+      seriesRef.current.setData(formattedData)
+    } catch (error) {
+      console.error("Error updating chart data:", error)
+    }
   }, [data])
 
   // Add annotations
