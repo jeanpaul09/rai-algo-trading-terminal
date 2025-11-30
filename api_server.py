@@ -27,18 +27,9 @@ app = FastAPI(title="RAI-ALGO API", version="1.0.0")
 
 # Enable CORS
 # CORS configuration - allow localhost and Vercel deployments
-allowed_origins = [
-    "http://localhost:3001",
-    "http://localhost:3000",
-    "https://*.vercel.app",
-]
-# Also allow any Vercel preview deployments
-if os.environ.get("VERCEL_URL"):
-    allowed_origins.append(f"https://{os.environ.get('VERCEL_URL')}")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all for now, restrict in production
+    allow_origins=["*"],  # Allow all origins for now
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -374,27 +365,66 @@ async def get_positions(exchange: str = "hyperliquid"):
 @app.get("/api/overview")
 async def get_overview():
     """Get dashboard overview with REAL data."""
-    # Get real market data for latest equity curve
-    btc_data = fetch_binance_market_data("BTC/USDT", 
-        (datetime.now() - timedelta(days=90)).isoformat(),
-        datetime.now().isoformat(),
-    )
-    
+    # Try Hyperliquid first (more reliable, no geographic restrictions)
+    # Fallback to Binance if Hyperliquid fails
     equity_curve = []
-    if btc_data:
-        base_price = btc_data[0].close
-        for d in btc_data:
-            equity_curve.append({
-                "timestamp": d.timestamp.isoformat(),
-                "equity": d.close / base_price * 10000,  # Normalized to 10k
-            })
+    btc_price = None
+    data_source = "mock"
+    
+    # Try Hyperliquid first
+    try:
+        hyperliquid_data = fetch_hyperliquid_market_data(
+            "BTC",
+            (datetime.now() - timedelta(days=90)).isoformat(),
+            datetime.now().isoformat(),
+        )
+        if hyperliquid_data:
+            base_price = hyperliquid_data[0].close
+            btc_price = hyperliquid_data[-1].close if hyperliquid_data else None
+            for d in hyperliquid_data[-90:]:  # Last 90 days
+                equity_curve.append({
+                    "timestamp": d.timestamp.isoformat(),
+                    "equity": d.close / base_price * 10000,  # Normalized to 10k
+                })
+            data_source = "real"
+    except Exception as e:
+        print(f"Hyperliquid fetch failed: {e}")
+    
+    # Fallback to Binance if Hyperliquid failed
+    if not equity_curve:
+        try:
+            btc_data = fetch_binance_market_data(
+                "BTC/USDT", 
+                (datetime.now() - timedelta(days=90)).isoformat(),
+                datetime.now().isoformat(),
+            )
+            if btc_data:
+                base_price = btc_data[0].close
+                btc_price = btc_data[-1].close if btc_data else None
+                for d in btc_data[-90:]:  # Last 90 days
+                    equity_curve.append({
+                        "timestamp": d.timestamp.isoformat(),
+                        "equity": d.close / base_price * 10000,  # Normalized to 10k
+                    })
+                data_source = "real"
+        except Exception as e:
+            print(f"Binance fetch failed: {e}")
+            # If both fail, return empty curve
+    
+    # Count strategies
+    try:
+        strategy_count = len(list(Path("rai_algo/strategies").glob("*.py"))) if Path("rai_algo/strategies").exists() else 0
+    except:
+        strategy_count = 0
     
     return {
-        "total_strategies": len(list(Path("rai_algo/strategies").glob("*.py"))),
+        "total_strategies": strategy_count,
         "deployed_strategies": len(_live_traders),
         "best_sharpe": 2.45,
         "worst_drawdown": -0.15,
-        "latest_equity_curve": equity_curve[-90:],  # Last 90 days
+        "latest_equity_curve": equity_curve,
+        "btc_price": btc_price,
+        "data_source": data_source,
         "daily_pnl": sum(
             t.get_status().get("risk_manager", {}).get("daily_stats", {}).get("total_pnl", 0)
             for t in _live_traders.values()
