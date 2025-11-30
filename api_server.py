@@ -627,6 +627,48 @@ async def list_jobs():
     return list(_jobs.values())
 
 
+@app.get("/api/experiments")
+async def get_experiments():
+    """Get all experiments."""
+    experiments = []
+    for exp_id, result in _backtest_results.items():
+        experiments.append({
+            "id": exp_id,
+            "strategy_name": result.parameters.get("strategy_name", "Unknown"),
+            "market": result.parameters.get("market", "BTC/USDT"),
+            "start_date": result.parameters.get("start_date", ""),
+            "end_date": result.parameters.get("end_date", ""),
+            "status": "completed",
+            "parameters": result.parameters,
+            "metrics": {
+                "sharpe": result.sharpe_ratio,
+                "sortino": 0.0,
+                "max_drawdown": result.max_drawdown_pct,
+                "cagr": result.total_return_pct / 365 * 252,
+                "hit_rate": result.win_rate,
+                "win_rate": result.win_rate,
+            },
+        })
+    return experiments
+
+
+@app.get("/api/correlation")
+async def get_correlation():
+    """Get correlation matrix for strategies."""
+    # TODO: Calculate real correlations from backtest results
+    return {
+        "strategies": [],
+        "correlations": []
+    }
+
+
+@app.get("/api/market-exposure")
+async def get_market_exposure():
+    """Get market exposure data."""
+    # TODO: Calculate from active positions
+    return []
+
+
 @app.get("/api/terminal/status")
 async def get_terminal_status():
     """Get agent status."""

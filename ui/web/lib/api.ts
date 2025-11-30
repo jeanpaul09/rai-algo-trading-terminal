@@ -39,8 +39,10 @@ async function fetchAPI<T>(endpoint: string, fallback?: () => T | Promise<T>): P
     
     // Ensure endpoint starts with / and remove double slashes
     const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
-    const cleanBaseUrl = API_BASE_URL.replace(/\/+$/, "") // Remove trailing slashes
-    const url = `${cleanBaseUrl}${cleanEndpoint}`.replace(/([^:]\/)\/+/g, "$1") // Remove double slashes except after protocol
+    const cleanBaseUrl = (API_BASE_URL || "").replace(/\/+$/, "") // Remove trailing slashes
+    let url = `${cleanBaseUrl}${cleanEndpoint}`
+    // Remove double slashes except after protocol (https:// or http://)
+    url = url.replace(/([^:]\/)\/+/g, "$1")
     
     const response = await fetch(url, fetchOptions);
     

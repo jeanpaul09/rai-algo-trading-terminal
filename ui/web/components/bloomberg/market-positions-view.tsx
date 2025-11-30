@@ -42,9 +42,11 @@ export function MarketPositionsView() {
     const fetchData = async () => {
       try {
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+        const cleanBaseUrl = (API_BASE_URL || "").replace(/\/+$/, "")
         
         // Fetch positions
-        const positionsRes = await fetch(`${API_BASE_URL}/api/positions`, {
+        const positionsUrl = `${cleanBaseUrl}/api/positions`.replace(/([^:]\/)\/+/g, "$1")
+        const positionsRes = await fetch(positionsUrl, {
           cache: "no-store",
         })
         const positionsData = positionsRes.ok ? await positionsRes.json() : []

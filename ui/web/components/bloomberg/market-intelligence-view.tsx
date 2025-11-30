@@ -38,7 +38,9 @@ export function MarketIntelligenceView() {
     const fetchData = async () => {
       try {
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-        const response = await fetch(`${API_BASE_URL}/api/liquidations?exchange=binance`, {
+        const cleanBaseUrl = (API_BASE_URL || "").replace(/\/+$/, "")
+        const url = `${cleanBaseUrl}/api/liquidations?exchange=binance`.replace(/([^:]\/)\/+/g, "$1")
+        const response = await fetch(url, {
           cache: "no-store",
         })
         
