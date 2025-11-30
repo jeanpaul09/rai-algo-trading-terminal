@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useWebSocket } from "@/hooks/use-websocket"
-import { getWebSocketURL, fetchAgentStatus, fetchWalletInfo, fetchOHLCVData, fetchChartAnnotations, fetchBrainFeed, fetchStrategyControls } from "@/lib/api-terminal"
+import { getWebSocketURL, fetchAgentStatus, fetchWalletInfo, fetchOHLCVData, fetchChartAnnotations, fetchBrainFeed, fetchStrategies } from "@/lib/api-terminal"
 import type {
   AgentStatus,
   WalletInfo,
@@ -206,7 +206,7 @@ export default function TerminalPage() {
           fetchOHLCVData("BTC/USDT", "1h", 100).catch(() => []),
           fetchChartAnnotations("BTC/USDT").catch(() => []),
           fetchBrainFeed(50).catch(() => []),
-          fetchStrategyControls().catch(() => []),
+          fetchStrategies().catch(() => []),
         ])
         
         if (status) {
