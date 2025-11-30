@@ -218,8 +218,10 @@ export function AnnotatedChart({
             return null
           }
 
+          // lightweight-charts expects time as Unix timestamp (seconds) or bar index
+          // We're using Unix timestamp
           return {
-            time: timeValue,
+            time: timeValue as any, // Cast to satisfy TypeScript - lightweight-charts accepts number
             open: open,
             high: Math.max(high, open, close, low), // Ensure high is highest
             low: Math.min(low, open, close, high),  // Ensure low is lowest
@@ -236,9 +238,13 @@ export function AnnotatedChart({
         seriesRef.current.setData(formattedData)
         setChartError(null)
         
-        // Force chart to update
-        if (chartRef.current) {
-          chartRef.current.timeScale().fitContent()
+        // Force chart to update and fit content
+        try {
+          if (chartRef.current && chartRef.current.timeScale) {
+            chartRef.current.timeScale().fitContent()
+          }
+        } catch (e) {
+          console.warn('Could not fit content:', e)
         }
       } else {
         console.error('❌ No valid candles after formatting!')

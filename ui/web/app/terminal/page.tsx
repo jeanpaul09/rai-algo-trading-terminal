@@ -241,17 +241,21 @@ export default function TerminalPage() {
     
     loadData()
     
-    // Set up polling fallback if WebSocket fails (refresh data every 5 seconds)
+    // Set up polling fallback if WebSocket fails (refresh data every 10 seconds)
+    // Only poll if WebSocket failed after initial connection attempts
     const pollingInterval = setInterval(() => {
       if (!isConnected && apiUrl) {
-        // WebSocket not connected, use polling as fallback
+        // WebSocket not connected, use polling as fallback for annotations/performance
+        // Don't poll chart data - it's loaded once on mount
         fetchChartAnnotations("BTC/USDT").then(setAnnotations).catch(() => {})
-        fetchPerformanceComparison(selectedStrategy || "").then(setPerformanceComparisons).catch(() => {})
+        if (agentStatus.isActive && agentStatus.mode === "DEMO") {
+          fetchPerformanceComparison(selectedStrategy || "").then(setPerformanceComparisons).catch(() => {})
+        }
       }
-    }, 5000) // Poll every 5 seconds if WebSocket is down
+    }, 10000) // Poll every 10 seconds if WebSocket is down
     
     return () => clearInterval(pollingInterval)
-  }, [selectedStrategy, isConnected, apiUrl])
+  }, [selectedStrategy, isConnected, apiUrl, agentStatus.isActive, agentStatus.mode])
   
   // Refresh performance data periodically when demo trading is active
   useEffect(() => {
