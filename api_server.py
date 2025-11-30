@@ -382,7 +382,7 @@ async def root():
 
 @app.get("/api/market/data")
 async def get_market_data(symbol: str = "BTC/USDT", days: int = 30, exchange: str = "hyperliquid"):
-    """Get REAL market data from Hyperliquid or Binance. Defaults to Hyperliquid (no geo restrictions)."""
+    """Get REAL market data from Hyperliquid or Kraken. Defaults to Hyperliquid (no geo restrictions)."""
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
     
@@ -390,21 +390,21 @@ async def get_market_data(symbol: str = "BTC/USDT", days: int = 30, exchange: st
     exchange_used = exchange.lower()
     
     # Default to Hyperliquid (more reliable, no geographic restrictions)
-    if exchange.lower() == "binance":
-        data = fetch_binance_market_data(symbol, start_date.isoformat(), end_date.isoformat())
-        # If Binance fails, try Hyperliquid as fallback
+    if exchange.lower() == "kraken":
+        data = fetch_kraken_market_data(symbol, start_date.isoformat(), end_date.isoformat())
+        # If Kraken fails, try Hyperliquid as fallback
         if not data:
-            print(f"Binance failed for {symbol}, trying Hyperliquid fallback...")
+            print(f"Kraken failed for {symbol}, trying Hyperliquid fallback...")
             data = fetch_hyperliquid_market_data(symbol, start_date.isoformat(), end_date.isoformat())
             exchange_used = "hyperliquid" if data else "none"
     else:
         # Use Hyperliquid by default
         data = fetch_hyperliquid_market_data(symbol, start_date.isoformat(), end_date.isoformat())
-        # If Hyperliquid fails, try Binance as fallback
+        # If Hyperliquid fails, try Kraken as fallback (no geo restrictions)
         if not data:
-            print(f"Hyperliquid failed for {symbol}, trying Binance fallback...")
-            data = fetch_binance_market_data(symbol, start_date.isoformat(), end_date.isoformat())
-            exchange_used = "binance" if data else "none"
+            print(f"Hyperliquid failed for {symbol}, trying Kraken fallback...")
+            data = fetch_kraken_market_data(symbol, start_date.isoformat(), end_date.isoformat())
+            exchange_used = "kraken" if data else "none"
     
     return {
         "symbol": symbol,
