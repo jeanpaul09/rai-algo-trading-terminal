@@ -12,6 +12,7 @@ import json
 import uuid
 import asyncio
 from pathlib import Path
+import os
 import requests
 
 # Import RAI-ALGO modules
@@ -25,9 +26,19 @@ from rai_algo.optimizer import Optimizer
 app = FastAPI(title="RAI-ALGO API", version="1.0.0")
 
 # Enable CORS
+# CORS configuration - allow localhost and Vercel deployments
+allowed_origins = [
+    "http://localhost:3001",
+    "http://localhost:3000",
+    "https://*.vercel.app",
+]
+# Also allow any Vercel preview deployments
+if os.environ.get("VERCEL_URL"):
+    allowed_origins.append(f"https://{os.environ.get('VERCEL_URL')}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001", "http://localhost:3000"],
+    allow_origins=["*"],  # Allow all for now, restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -601,4 +612,5 @@ if __name__ == "__main__":
         print(f"   ⚠️  Binance API: {e}")
     
     print("")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
