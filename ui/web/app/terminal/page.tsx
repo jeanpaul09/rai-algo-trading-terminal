@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useWebSocket } from "@/hooks/use-websocket"
-import { getWebSocketURL } from "@/lib/api-terminal"
+import { getWebSocketURL, fetchAgentStatus, fetchWalletInfo, fetchOHLCVData, fetchChartAnnotations, fetchBrainFeed, fetchStrategyControls } from "@/lib/api-terminal"
 import type {
   AgentStatus,
   WalletInfo,
@@ -199,28 +199,49 @@ export default function TerminalPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Try to fetch real data from backend
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || ""
-        if (apiBase) {
-          const [status, wallet] = await Promise.all([
-            fetch(`${apiBase}/api/terminal/status`).then(r => r.ok ? r.json() : null).catch(() => null),
-            fetch(`${apiBase}/api/terminal/wallet`).then(r => r.ok ? r.json() : null).catch(() => null),
-          ])
-          
-          if (status) {
-            setAgentStatus(status)
-          }
-          if (wallet) {
-            setWalletInfo(wallet)
-          }
+        // Use API client functions which handle the backend URL correctly
+        const [status, wallet, chartData, annotations, brainFeed, strategies] = await Promise.all([
+          fetchAgentStatus().catch(() => null),
+          fetchWalletInfo().catch(() => null),
+          fetchOHLCVData("BTC/USDT", "1h", 100).catch(() => []),
+          fetchChartAnnotations("BTC/USDT").catch(() => []),
+          fetchBrainFeed(50).catch(() => []),
+          fetchStrategyControls().catch(() => []),
+        ])
+        
+        if (status) {
+          setAgentStatus(status)
+          console.log("✅ Loaded agent status from backend:", status)
+        }
+        if (wallet) {
+          setWalletInfo(wallet)
+          console.log("✅ Loaded wallet info from backend:", wallet)
+        }
+        if (chartData && chartData.length > 0) {
+          setChartData(chartData)
+          console.log("✅ Loaded chart data from backend:", chartData.length, "candles")
+        } else {
+          setChartData(generateMockOHLCV())
+        }
+        if (annotations && annotations.length > 0) {
+          setAnnotations(annotations)
+        } else {
+          setAnnotations(generateMockAnnotations())
+        }
+        if (brainFeed && brainFeed.length > 0) {
+          setBrainFeedEntries(brainFeed)
+          console.log("✅ Loaded brain feed from backend:", brainFeed.length, "entries")
+        }
+        if (strategies && strategies.length > 0) {
+          setStrategies(strategies)
+          console.log("✅ Loaded strategies from backend:", strategies.length, "strategies")
         }
       } catch (error) {
-        console.log("Using mock data - backend not available:", error)
+        console.error("❌ Error loading data from backend, using mock data:", error)
+        // Fallback to mock data
+        setChartData(generateMockOHLCV())
+        setAnnotations(generateMockAnnotations())
       }
-      
-      // Always load mock data as fallback
-      setChartData(generateMockOHLCV())
-      setAnnotations(generateMockAnnotations())
     }
     
     loadData()

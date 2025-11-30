@@ -66,7 +66,7 @@ export async function fetchAgentStatus(): Promise<AgentStatus> {
     lastUpdate: new Date().toISOString(),
   }
 
-  return fetchTerminalAPI<AgentStatus>("/api/terminal/agent/status", undefined, () => fallback)
+  return fetchTerminalAPI<AgentStatus>("/api/terminal/status", undefined, () => fallback)
 }
 
 /**

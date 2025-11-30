@@ -627,6 +627,81 @@ async def list_jobs():
     return list(_jobs.values())
 
 
+@app.get("/api/terminal/status")
+async def get_terminal_status():
+    """Get agent status."""
+    return _agent_status
+
+
+@app.get("/api/terminal/wallet")
+async def get_terminal_wallet():
+    """Get wallet info from Hyperliquid."""
+    try:
+        from rai_algo.exchanges.hyperliquid import HyperliquidExchange
+        exchange = HyperliquidExchange()
+        balance = exchange.get_balance("USDC")
+        return {
+            "address": os.getenv("HYPERLIQUID_ADDRESS", "Not set"),
+            "balance": balance.total if balance else 0,
+            "marginUsed": 0,
+            "marginAvailable": balance.available if balance else 0,
+            "realizedPnL": 0,
+            "unrealizedPnL": 0,
+            "environment": _agent_status["environment"]
+        }
+    except Exception as e:
+        return {
+            "address": os.getenv("HYPERLIQUID_ADDRESS", "Not set"),
+            "balance": 0,
+            "marginUsed": 0,
+            "marginAvailable": 0,
+            "realizedPnL": 0,
+            "unrealizedPnL": 0,
+            "environment": _agent_status["environment"]
+        }
+
+
+@app.post("/api/terminal/agent/command")
+async def terminal_agent_command(command: Dict[str, Any]):
+    """Send command to AI agent."""
+    cmd_text = command.get("command", "")
+    if not anthropic_client:
+        return {
+            "id": f"cmd-{datetime.now().timestamp()}",
+            "timestamp": datetime.now().isoformat(),
+            "command": cmd_text,
+            "status": "failed",
+            "response": "ANTHROPIC_API_KEY not configured"
+        }
+    
+    try:
+        message = anthropic_client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            messages=[{
+                "role": "user",
+                "content": f"""You are an AI trading agent. Current status: {_agent_status['mode']} mode.
+User command: {cmd_text}"""
+            }]
+        )
+        response = message.content[0].text if message.content else "No response"
+        return {
+            "id": f"cmd-{datetime.now().timestamp()}",
+            "timestamp": datetime.now().isoformat(),
+            "command": cmd_text,
+            "status": "completed",
+            "response": response
+        }
+    except Exception as e:
+        return {
+            "id": f"cmd-{datetime.now().timestamp()}",
+            "timestamp": datetime.now().isoformat(),
+            "command": cmd_text,
+            "status": "failed",
+            "response": str(e)
+        }
+
+
 @app.post("/api/live/start")
 async def start_live_trading(request: Dict[str, Any]):
     """Start live trading with Hyperliquid."""
