@@ -335,19 +335,28 @@ export function AnnotatedChart({
           // Check if createPriceLine exists on series (v5 API)
           const createPriceLineFn = (series as any).createPriceLine
           if (typeof createPriceLineFn === 'function') {
-            const priceLine = createPriceLineFn.call(series, {
-              price: annotation.price,
+            const priceLineOptions = {
+              price: Number(annotation.price),
               color: color,
               lineWidth: 2,
-              lineStyle: lineStyle, // 0 = solid, 2 = dashed
+              lineStyle: lineStyle, // 0 = solid (LineStyle.Solid), 2 = dashed (LineStyle.Dashed)
               axisLabelVisible: true,
-              title: annotation.label || `${annotation.type.toUpperCase()}: $${annotation.price.toFixed(2)}`,
-            })
+              title: annotation.label || `${annotation.type.toUpperCase()}: $${Number(annotation.price).toFixed(2)}`,
+            }
+            const priceLine = createPriceLineFn.call(series, priceLineOptions)
             if (priceLine) {
               priceLinesRef.current.push(priceLine)
+              console.log(`✅ Added ${annotation.type.toUpperCase()} price line at $${annotation.price.toFixed(2)}`)
+            } else {
+              console.warn(`⚠️ createPriceLine returned null for ${annotation.type}`)
             }
           } else {
-            console.warn("createPriceLine not available on series - using fallback")
+            // Fallback: Try alternative API
+            console.warn("createPriceLine not found, trying alternative method")
+            const altMethod = (series as any).addPriceLine || (series as any).priceLine
+            if (altMethod) {
+              altMethod.call(series, annotation.price, { color, title: annotation.label })
+            }
           }
         } catch (error) {
           console.error(`Error creating price line for ${annotation.type}:`, error)
