@@ -193,7 +193,6 @@ export default function TerminalPage() {
     onError: (error) => {
       console.error("WebSocket error:", error)
     },
-    reconnect: true,
   })
 
   // Load initial data
