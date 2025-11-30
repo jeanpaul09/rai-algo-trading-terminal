@@ -46,6 +46,14 @@ export function AnnotatedChart({
   useEffect(() => {
     if (!chartContainerRef.current) return
 
+    // CRITICAL: Prevent any use of addCandlestickSeries (v4 API)
+    // This check ensures we fail gracefully if somehow old code is loaded
+    if (typeof (window as any).__OLD_CHART_API_LOADED !== 'undefined') {
+      console.warn('⚠️ Old chart API detected - using fallback')
+      setChartError('Chart library version mismatch - please refresh the page')
+      return
+    }
+
     try {
       // Create chart
       const chart = createChart(chartContainerRef.current, {
@@ -70,6 +78,15 @@ export function AnnotatedChart({
       // Add candlestick series - lightweight-charts v5.0.9 API
       // CRITICAL: v5.0.9 ONLY supports addSeries('Candlestick', options)
       // addCandlestickSeries DOES NOT EXIST in v5 - removed in breaking change
+      
+      // Defensive check: If addCandlestickSeries exists, we have wrong version
+      if (typeof (chart as any).addCandlestickSeries === 'function') {
+        console.error('❌ OLD API DETECTED: addCandlestickSeries exists (v4 API)')
+        console.error('This build is using the wrong chart library version!')
+        setChartError('Chart library version mismatch - cached build detected. Please wait for Vercel to rebuild or hard refresh (Cmd+Shift+R)')
+        return
+      }
+
       let candlestickSeries
       try {
         // v5 API: MUST use addSeries('Candlestick', {...})

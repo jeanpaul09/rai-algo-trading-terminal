@@ -455,14 +455,16 @@ export default function TerminalPage() {
 
           {/* Chart */}
           <div className="flex-1 p-4 overflow-hidden">
-            <AnnotatedChart
-              data={chartData}
-              annotations={annotations}
-              symbol="BTC/USD"
-              height={400}
-              showAnnotations={showAnnotations}
-              strategyFilter={selectedStrategy}
-            />
+            <TerminalErrorBoundary>
+              <AnnotatedChart
+                data={chartData}
+                annotations={annotations}
+                symbol="BTC/USD"
+                height={400}
+                showAnnotations={showAnnotations}
+                strategyFilter={selectedStrategy}
+              />
+            </TerminalErrorBoundary>
           </div>
 
           {/* Brain Feed */}
