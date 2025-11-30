@@ -152,10 +152,10 @@ export default function TerminalPage() {
       console.error("WebSocket URL:", wsUrl)
     },
     onOpen: () => {
-      console.log("✅ WebSocket connected successfully")
+      console.log("✅ WebSocket connected successfully - real-time updates enabled")
     },
     onClose: () => {
-      console.warn("⚠️ WebSocket disconnected")
+      console.warn("⚠️ WebSocket disconnected - falling back to polling")
     },
   })
 

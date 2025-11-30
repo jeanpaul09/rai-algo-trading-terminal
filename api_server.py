@@ -1371,10 +1371,30 @@ async def websocket_terminal(websocket: WebSocket):
     """WebSocket endpoint for real-time terminal updates."""
     await websocket.accept()
     _websocket_connections.append(websocket)
+    print(f"✅ WebSocket client connected. Total connections: {len(_websocket_connections)}")
+    
+    # Send initial connection confirmation
+    try:
+        await websocket.send_json({
+            "type": "connection",
+            "status": "connected",
+            "message": "WebSocket connected successfully"
+        })
+    except Exception as e:
+        print(f"⚠️ Error sending initial WebSocket message: {e}")
     
     try:
         while True:
-            data = await websocket.receive_json()
+            # Add timeout to prevent hanging
+            try:
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
+            except asyncio.TimeoutError:
+                # Send ping to keep connection alive
+                try:
+                    await websocket.send_json({"type": "ping"})
+                except:
+                    break
+                continue
             
             # Handle incoming messages
             msg_type = data.get("type")
