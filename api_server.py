@@ -63,20 +63,32 @@ def fetch_hyperliquid_market_data(symbol: str, start_date: str, end_date: str) -
         # Hyperliquid uses POST with JSON body
         url = f"{HYPERLIQUID_API}/info"
         
-        # Normalize symbol (BTC -> BTC)
+        # Normalize symbol (BTC/USDT -> BTC, BTC/USD -> BTC)
         hl_symbol = symbol.replace("/", "").replace("USDT", "").replace("USD", "").upper()
         
-        # Convert dates to timestamps
-        start_ts = int(datetime.fromisoformat(start_date).timestamp() * 1000)
-        end_ts = int(datetime.fromisoformat(end_date).timestamp() * 1000)
+        # Convert dates to timestamps (milliseconds)
+        try:
+            start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+        except:
+            # Fallback parsing
+            start_dt = datetime.fromisoformat(start_date)
+            end_dt = datetime.fromisoformat(end_date)
+        
+        start_ts = int(start_dt.timestamp() * 1000)
+        end_ts = int(end_dt.timestamp() * 1000)
         
         # Fetch candles - Hyperliquid uses POST
+        # Calculate number of candles needed (1h = 3600000 ms)
+        hours_needed = (end_ts - start_ts) / (3600 * 1000)
+        n_candles = min(int(hours_needed) + 10, 1000)  # Add buffer, max 1000
+        
         payload = {
             "type": "candleSnapshot",
             "req": {
                 "coin": hl_symbol,
                 "interval": "1h",  # 1 hour candles
-                "n": 1000,  # Max candles per request
+                "n": n_candles,
             }
         }
         
@@ -86,25 +98,37 @@ def fetch_hyperliquid_market_data(symbol: str, start_date: str, end_date: str) -
         
         # Parse Hyperliquid candle format
         candles = data.get("data", []) if isinstance(data, dict) else data
+        if not isinstance(candles, list):
+            print(f"Unexpected Hyperliquid response format: {type(candles)}")
+            return []
+        
         market_data = []
         
         for candle in candles:
             # Hyperliquid format: [time, open, high, low, close, volume]
             if isinstance(candle, list) and len(candle) >= 6:
-                ts = datetime.fromtimestamp(candle[0] / 1000)
-                if start_ts <= candle[0] <= end_ts:
-                    market_data.append(MarketData(
-                        timestamp=ts,
-                        open=float(candle[1]),
-                        high=float(candle[2]),
-                        low=float(candle[3]),
-                        close=float(candle[4]),
-                        volume=float(candle[5]),
-                    ))
+                candle_time = candle[0]
+                # Filter by time range
+                if start_ts <= candle_time <= end_ts:
+                    try:
+                        ts = datetime.fromtimestamp(candle_time / 1000)
+                        market_data.append(MarketData(
+                            timestamp=ts,
+                            open=float(candle[1]),
+                            high=float(candle[2]),
+                            low=float(candle[3]),
+                            close=float(candle[4]),
+                            volume=float(candle[5]),
+                        ))
+                    except (ValueError, IndexError) as e:
+                        print(f"Error parsing candle: {e}")
+                        continue
         
-        return sorted(market_data, key=lambda x: x.timestamp)
+        return sorted(market_data, key=lambda x: x.timestamp) if market_data else []
     except Exception as e:
-        print(f"Error fetching Hyperliquid data: {e}")
+        print(f"Error fetching Hyperliquid data for {symbol}: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
