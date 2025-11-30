@@ -37,7 +37,12 @@ async function fetchAPI<T>(endpoint: string, fallback?: () => T | Promise<T>): P
       signal: controller?.signal,
     };
     
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
+    // Ensure endpoint starts with / and remove double slashes
+    const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
+    const cleanBaseUrl = API_BASE_URL.replace(/\/+$/, "") // Remove trailing slashes
+    const url = `${cleanBaseUrl}${cleanEndpoint}`.replace(/([^:]\/)\/+/g, "$1") // Remove double slashes except after protocol
+    
+    const response = await fetch(url, fetchOptions);
     
     if (timeoutId) clearTimeout(timeoutId);
 

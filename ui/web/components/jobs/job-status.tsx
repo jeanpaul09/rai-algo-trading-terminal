@@ -22,7 +22,8 @@ export function JobStatus() {
     const fetchJobs = async () => {
       try {
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-        const response = await fetch(`${API_BASE_URL}/api/jobs`)
+        const cleanBaseUrl = API_BASE_URL.replace(/\/+$/, "")
+        const response = await fetch(`${cleanBaseUrl}/api/jobs`)
         if (response.ok) {
           const data = await response.json()
           setJobs(data.slice(0, 5)) // Show last 5 jobs
