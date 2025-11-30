@@ -4,11 +4,8 @@
   "framework": "nextjs",
   "installCommand": "npm install",
   "devCommand": "npm run dev",
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
-    }
-  ]
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://web-production-e9cd4.up.railway.app"
+  }
 }
 

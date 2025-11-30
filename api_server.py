@@ -247,7 +247,7 @@ def fetch_hyperliquid_liquidations() -> List[Dict[str, Any]]:
         url = f"{HYPERLIQUID_API}/info"
         
         # Hyperliquid doesn't have a direct liquidations endpoint in public API
-        # We'll use recent trades/events or fallback to Binance for now
+        # Use Hyperliquid for liquidations (no geo restrictions)
         # For now, return empty list and note that liquidations require user-specific data
         # In production, you'd need to track liquidations via WebSocket or user-specific endpoints
         
@@ -324,39 +324,7 @@ def fetch_hyperliquid_open_interest() -> Dict[str, Any]:
         return {}
 
 
-def fetch_binance_liquidations() -> List[Dict[str, Any]]:
-    """Fetch REAL liquidation data from Binance Futures public API."""
-    try:
-        symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
-        all_liquidations = []
-        
-        for symbol in symbols:
-            try:
-                url = f"{BINANCE_FUTURES_API}/forceOrders"
-                params = {"symbol": symbol, "limit": 20}
-                response = requests.get(url, params=params, timeout=5)
-                
-                if response.status_code == 200:
-                    liquidations = response.json()
-                    if isinstance(liquidations, list):
-                        for liq in liquidations:
-                            all_liquidations.append({
-                                "symbol": liq.get("symbol", symbol),
-                                "side": liq.get("side", "UNKNOWN"),
-                                "order_type": liq.get("orderType", "LIMIT"),
-                                "price": float(liq.get("price", 0)),
-                                "quantity": float(liq.get("executedQty", 0)),
-                                "time": liq.get("time", 0),
-                                "timestamp": datetime.fromtimestamp(liq.get("time", 0) / 1000).isoformat() if liq.get("time") else datetime.now().isoformat(),
-                            })
-            except Exception as e:
-                print(f"Error fetching Binance liquidations for {symbol}: {e}")
-                continue
-        
-        return sorted(all_liquidations, key=lambda x: x.get("time", 0), reverse=True)[:50]
-    except Exception as e:
-        print(f"Error fetching Binance liquidations: {e}")
-        return []
+# Binance liquidations removed - use Hyperliquid instead (no geo restrictions)
 
 
 @app.get("/")
@@ -427,17 +395,20 @@ async def get_market_data(symbol: str = "BTC/USDT", days: int = 30, exchange: st
 
 @app.get("/api/liquidations")
 async def get_liquidations(exchange: str = "hyperliquid"):
-    """Get REAL liquidation data from Hyperliquid or Binance."""
+    """Get REAL liquidation data from Hyperliquid (no geo restrictions)."""
     if exchange.lower() == "hyperliquid":
         liquidations = fetch_hyperliquid_liquidations()
         oi_data = fetch_hyperliquid_open_interest()
+        api_url = HYPERLIQUID_API
     else:
-        liquidations = fetch_binance_liquidations()
-        oi_data = {}  # Binance OI would need separate endpoint
+        # Only Hyperliquid supported for liquidations (no geo restrictions)
+        liquidations = []
+        oi_data = {}
+        api_url = HYPERLIQUID_API
     
     return {
         "exchange": exchange,
-        "api_url": HYPERLIQUID_API if exchange.lower() == "hyperliquid" else BINANCE_FUTURES_API,
+        "api_url": api_url,
         "liquidations": liquidations,
         "open_interest": oi_data,
         "timestamp": datetime.now().isoformat(),
@@ -487,10 +458,10 @@ async def get_overview():
     except Exception as e:
         print(f"Hyperliquid fetch failed: {e}")
     
-    # Fallback to Binance if Hyperliquid failed
+    # Fallback to Kraken if Hyperliquid failed (no geo restrictions)
     if not equity_curve:
         try:
-            btc_data = fetch_binance_market_data(
+            btc_data = fetch_kraken_market_data(
                 "BTC/USDT", 
                 (datetime.now() - timedelta(days=90)).isoformat(),
                 datetime.now().isoformat(),
@@ -505,7 +476,7 @@ async def get_overview():
                     })
                 data_source = "real"
         except Exception as e:
-            print(f"Binance fetch failed: {e}")
+            print(f"Kraken fetch failed: {e}")
             # If both fail, return empty curve
     
     # Count strategies
