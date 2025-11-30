@@ -550,9 +550,10 @@ class DemoTrader:
         return trades
     
     def get_chart_annotations(self) -> List[Dict[str, Any]]:
-        """Get chart annotations from trades."""
+        """Get chart annotations from trades and active positions."""
         annotations = []
         
+        # Get annotations from completed trades
         for trade in self.trades:
             if trade.type == TradeType.ENTRY:
                 annotations.append({
@@ -572,13 +573,13 @@ class DemoTrader:
                     "type": trade.type.value,
                     "price": trade.price,
                     "strategy": trade.strategy,
-                    "label": f"EXIT @ ${trade.price:,.2f} (PnL: ${trade.pnl:,.2f})",
+                    "label": f"EXIT @ ${trade.price:,.2f} (PnL: ${trade.pnl:,.2f})" if trade.pnl else f"EXIT @ ${trade.price:,.2f}",
                     "reason": trade.reason,
                     "color": "#ef4444" if (trade.pnl and trade.pnl < 0) else "#10b981",
                     "pnl": trade.pnl,
                 })
             
-            # Add stop loss and take profit lines from metadata
+            # Add stop loss and take profit lines from completed trade metadata
             if trade.type == TradeType.ENTRY and trade.metadata:
                 if trade.metadata.get("stop_loss"):
                     annotations.append({
@@ -600,6 +601,31 @@ class DemoTrader:
                         "label": f"TP: ${trade.metadata['take_profit']:,.2f}",
                         "color": "#3b82f6",  # Blue
                     })
+        
+        # Add active position annotations (TP/SL for open positions)
+        for symbol, position in self.positions.items():
+            if position.stop_loss:
+                annotations.append({
+                    "id": f"active_{symbol}_sl",
+                    "timestamp": int(datetime.now().timestamp()),  # Current time for active levels
+                    "type": "sl",
+                    "price": position.stop_loss,
+                    "strategy": position.strategy,
+                    "label": f"SL: ${position.stop_loss:,.2f}",
+                    "reason": "Active stop loss",
+                    "color": "#f59e0b",  # Amber
+                })
+            if position.take_profit:
+                annotations.append({
+                    "id": f"active_{symbol}_tp",
+                    "timestamp": int(datetime.now().timestamp()),  # Current time for active levels
+                    "type": "tp",
+                    "price": position.take_profit,
+                    "strategy": position.strategy,
+                    "label": f"TP: ${position.take_profit:,.2f}",
+                    "reason": "Active take profit",
+                    "color": "#3b82f6",  # Blue
+                })
         
         return annotations
 

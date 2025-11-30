@@ -84,7 +84,26 @@ export default function TerminalPage() {
           ])
           break
         case "annotation":
-          setAnnotations((prev) => [...prev, data.annotation as ChartAnnotation])
+          // Add new annotation
+          const newAnnotation = data.annotation as ChartAnnotation
+          setAnnotations((prev) => {
+            // Avoid duplicates
+            const exists = prev.some(a => a.id === newAnnotation.id)
+            if (exists) return prev
+            return [...prev, newAnnotation]
+          })
+          break
+        case "annotation_refresh":
+          // Refresh annotations from backend
+          if (apiUrl) {
+            fetchChartAnnotations("BTC/USD", selectedStrategy || undefined)
+              .then((freshAnnotations) => {
+                setAnnotations(freshAnnotations)
+              })
+              .catch((error) => {
+                console.error("Error refreshing annotations:", error)
+              })
+          }
           break
         case "chart_update":
           // Update latest candle

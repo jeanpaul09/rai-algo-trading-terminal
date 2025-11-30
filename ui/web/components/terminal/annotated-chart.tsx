@@ -62,23 +62,52 @@ export function AnnotatedChart({
     }
 
     try {
-      // Create chart
+      // Create chart with premium styling
       const chart = createChart(chartContainerRef.current, {
         layout: {
           background: { type: ColorType.Solid, color: "#000000" },
           textColor: "#d1d5db",
+          fontSize: 12,
         },
-      grid: {
-        vertLines: { color: "#1f2937" },
-        horzLines: { color: "#1f2937" },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: height,
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-      },
-    })
+        grid: {
+          vertLines: { 
+            color: "#1f2937",
+            style: 0, // Solid
+          },
+          horzLines: { 
+            color: "#1f2937",
+            style: 0, // Solid
+          },
+        },
+        width: chartContainerRef.current.clientWidth,
+        height: height,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+          borderColor: "#374151",
+          rightOffset: 12,
+        },
+        rightPriceScale: {
+          borderColor: "#374151",
+          scaleMargins: {
+            top: 0.1,
+            bottom: 0.1,
+          },
+        },
+        crosshair: {
+          mode: 0, // Normal
+          vertLine: {
+            color: "#6b7280",
+            width: 1,
+            style: 3, // Dashed
+          },
+          horzLine: {
+            color: "#6b7280",
+            width: 1,
+            style: 3, // Dashed
+          },
+        },
+      })
 
     chartRef.current = chart
 
@@ -101,11 +130,16 @@ export function AnnotatedChart({
         if (typeof addSeriesFn === 'function') {
           console.log('✅ Using addSeries (v5.0.9 API) - correct method')
           candlestickSeries = addSeriesFn.call(chart, 'Candlestick', {
-            upColor: "#10b981",
-            downColor: "#ef4444",
+            upColor: "#10b981", // Green for bullish
+            downColor: "#ef4444", // Red for bearish
             borderVisible: false,
             wickUpColor: "#10b981",
             wickDownColor: "#ef4444",
+            priceFormat: {
+              type: 'price',
+              precision: 2,
+              minMove: 0.01,
+            },
           })
         } else {
           // If addSeries doesn't exist, log error and show fallback
@@ -190,16 +224,37 @@ export function AnnotatedChart({
     }
   }, [data])
 
-  // Add annotations
+  // Add annotations - markers and price lines
   useEffect(() => {
-    if (!chartRef.current || !seriesRef.current || !showAnnotations || !filteredAnnotations.length) return
+    if (!chartRef.current || !seriesRef.current || !showAnnotations) return
 
     const chart = chartRef.current
     const series = seriesRef.current
 
-    // Create markers array
+    // Clear existing price lines
+    if (priceLinesRef.current.length > 0) {
+      priceLinesRef.current.forEach((line) => {
+        try {
+          series.removePriceLine(line)
+        } catch (e) {
+          // Ignore if already removed
+        }
+      })
+      priceLinesRef.current = []
+    }
+
+    // Don't render if no annotations
+    if (!filteredAnnotations || filteredAnnotations.length === 0) {
+      // Clear markers
+      if ('setMarkers' in series) {
+        (series as any).setMarkers([])
+      }
+      return
+    }
+
+    // Create markers for entry/exit points
     const markers: SeriesMarker<number>[] = filteredAnnotations
-      .filter((annotation) => annotation.type !== "region")
+      .filter((annotation) => annotation.type === "entry" || annotation.type === "exit")
       .map((annotation) => {
         const color = annotation.color || getAnnotationColor(annotation.type)
         const shape = getAnnotationShape(annotation.type)
@@ -210,80 +265,102 @@ export function AnnotatedChart({
           position: position as 'aboveBar' | 'belowBar' | 'inBar',
           color: color,
           shape: shape as 'circle' | 'square' | 'arrowUp' | 'arrowDown',
-          text: annotation.label || annotation.reason || annotation.type,
-          size: 1,
+          text: annotation.label || annotation.reason || annotation.type.toUpperCase(),
+          size: 2,
         }
       })
 
-    // Set markers on the series (using setMarkers if available, otherwise ignore for now)
-    if (markers.length > 0 && 'setMarkers' in series) {
-      (series as any).setMarkers(markers)
+    // Set markers on the series
+    if ('setMarkers' in series && markers.length > 0) {
+      try {
+        (series as any).setMarkers(markers)
+        console.log(`✅ Added ${markers.length} markers to chart`)
+      } catch (error) {
+        console.error("Error setting markers:", error)
+      }
     }
 
-    // Add price lines for regions and levels
-    const priceLines: any[] = []
-    
+    // Add price lines for TP/SL/target levels
     filteredAnnotations.forEach((annotation) => {
-      if (annotation.type === "region" && annotation.priceEnd) {
-        // For regions, add two price lines
+      if (annotation.type === "tp" || annotation.type === "sl" || annotation.type === "target") {
         const color = annotation.color || getAnnotationColor(annotation.type)
-        priceLines.push(
-          (chart as any).createPriceLine({
-            price: annotation.price,
-            color: color + "40",
-            lineWidth: 1,
-            lineStyle: 2,
-            axisLabelVisible: true,
-            title: annotation.label || annotation.type,
-          })
-        )
-        priceLines.push(
-          (chart as any).createPriceLine({
-            price: annotation.priceEnd,
-            color: color + "40",
-            lineWidth: 1,
-            lineStyle: 2,
-            axisLabelVisible: false,
-          })
-        )
-      } else if (annotation.type === "tp" || annotation.type === "sl" || annotation.type === "target") {
-        // Add price lines for TP/SL/target levels
-        const color = annotation.color || getAnnotationColor(annotation.type)
-        priceLines.push(
-          (chart as any).createPriceLine({
+        const lineStyle = annotation.type === "sl" ? 2 : 0 // Dashed for SL, solid for TP
+        
+        try {
+          // Create price line - in v5, price lines are added to the series
+          const priceLine = series.createPriceLine({
             price: annotation.price,
             color: color,
-            lineWidth: 2,
-            lineStyle: 0,
+            lineWidth: annotation.type === "sl" ? 2 : 2,
+            lineStyle: lineStyle, // 0 = solid, 2 = dashed
             axisLabelVisible: true,
-            title: annotation.label || annotation.type.toUpperCase(),
+            title: annotation.label || `${annotation.type.toUpperCase()}: $${annotation.price.toFixed(2)}`,
           })
-        )
+          priceLinesRef.current.push(priceLine)
+        } catch (error) {
+          console.error(`Error creating price line for ${annotation.type}:`, error)
+        }
+      } else if (annotation.type === "region" && annotation.priceEnd) {
+        // For regions, add two price lines
+        const color = annotation.color || getAnnotationColor(annotation.type)
+        try {
+          const line1 = series.createPriceLine({
+            price: annotation.price,
+            color: color + "80", // Semi-transparent
+            lineWidth: 1,
+            lineStyle: 2, // Dashed
+            axisLabelVisible: true,
+            title: annotation.label || "Region Start",
+          })
+          const line2 = series.createPriceLine({
+            price: annotation.priceEnd,
+            color: color + "80",
+            lineWidth: 1,
+            lineStyle: 2,
+            axisLabelVisible: true,
+            title: "Region End",
+          })
+          priceLinesRef.current.push(line1, line2)
+        } catch (error) {
+          console.error("Error creating region lines:", error)
+        }
       }
     })
 
-    // Cleanup price lines on unmount or when annotations change
+    if (priceLinesRef.current.length > 0) {
+      console.log(`✅ Added ${priceLinesRef.current.length} price lines to chart`)
+    }
+
+    // Cleanup function
     return () => {
-      priceLines.forEach((line) => {
-        if ((chart as any).removePriceLine) {
-          (chart as any).removePriceLine(line)
-        }
-      })
-      priceLinesRef.current = []
+      // Cleanup is handled at the start of the effect
     }
   }, [filteredAnnotations, showAnnotations])
 
   return (
-    <Card className="w-full">
-      <div className="p-4 border-b flex items-center justify-between">
+    <Card className="w-full bg-black border border-gray-800">
+      <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/50">
         <div className="flex items-center gap-4">
-          <h3 className="font-semibold">{symbol}</h3>
-          <div className="text-sm text-muted-foreground">
+          <h3 className="font-semibold text-white">{symbol}</h3>
+          <div className="text-sm text-gray-400">
             {data.length} candles • {filteredAnnotations.length} annotations
           </div>
+          {filteredAnnotations.length > 0 && (
+            <div className="flex items-center gap-2 text-xs">
+              {filteredAnnotations.some(a => a.type === "entry") && (
+                <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400">Entry</span>
+              )}
+              {filteredAnnotations.some(a => a.type === "tp") && (
+                <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">TP</span>
+              )}
+              {filteredAnnotations.some(a => a.type === "sl") && (
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400">SL</span>
+              )}
+            </div>
+          )}
         </div>
         {strategyFilter && (
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
             Filtered: {strategyFilter}
           </div>
         )}

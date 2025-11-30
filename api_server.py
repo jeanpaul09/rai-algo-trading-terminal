@@ -946,18 +946,36 @@ def on_trade_event(trade: Any, event_type: str):
     """Callback for trade events (called from demo trader thread)."""
     # Broadcast trade event using thread-safe method
     if _event_loop and _event_loop.is_running():
+        # Create annotation from trade
+        annotation = {
+            "id": trade.id if hasattr(trade, 'id') else f"trade_{len(_brain_feed_entries)}",
+            "timestamp": int(trade.timestamp.timestamp()) if hasattr(trade, 'timestamp') else int(datetime.now().timestamp()),
+            "type": event_type,
+            "price": trade.price if hasattr(trade, 'price') else 0,
+            "strategy": trade.strategy if hasattr(trade, 'strategy') else "unknown",
+            "label": f"{event_type.upper()} @ ${trade.price:,.2f}" if hasattr(trade, 'price') else event_type.upper(),
+            "reason": trade.reason if hasattr(trade, 'reason') else "",
+        }
+        
+        # Add TP/SL if this is an entry trade
+        if event_type == "entry" and hasattr(trade, 'metadata') and trade.metadata:
+            if trade.metadata.get("take_profit"):
+                annotation["take_profit"] = trade.metadata["take_profit"]
+            if trade.metadata.get("stop_loss"):
+                annotation["stop_loss"] = trade.metadata["stop_loss"]
+        
         asyncio.run_coroutine_threadsafe(
             broadcast_to_clients({
                 "type": "annotation",
-                "annotation": {
-                    "id": trade.id if hasattr(trade, 'id') else f"trade_{len(_brain_feed_entries)}",
-                    "timestamp": int(trade.timestamp.timestamp()) if hasattr(trade, 'timestamp') else int(datetime.now().timestamp()),
-                    "type": event_type,
-                    "price": trade.price if hasattr(trade, 'price') else 0,
-                    "strategy": trade.strategy if hasattr(trade, 'strategy') else "unknown",
-                    "label": f"{event_type.upper()} @ ${trade.price:,.2f}" if hasattr(trade, 'price') else event_type.upper(),
-                    "reason": trade.reason if hasattr(trade, 'reason') else "",
-                },
+                "annotation": annotation,
+            }),
+            _event_loop
+        )
+        
+        # Also trigger chart annotation refresh by broadcasting a refresh message
+        asyncio.run_coroutine_threadsafe(
+            broadcast_to_clients({
+                "type": "annotation_refresh",
             }),
             _event_loop
         )
