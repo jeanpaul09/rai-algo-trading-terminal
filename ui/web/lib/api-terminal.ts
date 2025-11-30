@@ -25,7 +25,8 @@ function getApiBaseUrl(): string {
 }
 
 const API_BASE_URL = getApiBaseUrl()
-const USE_BACKEND = API_BASE_URL && API_BASE_URL !== "http://localhost:8000"
+// Use backend if URL is set and not localhost (unless explicitly set)
+const USE_BACKEND = typeof API_BASE_URL === "string" && API_BASE_URL !== "" && API_BASE_URL !== "http://localhost:8000"
 
 async function fetchTerminalAPI<T>(
   endpoint: string,
