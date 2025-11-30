@@ -123,9 +123,19 @@ export default function TerminalPage() {
   const [showAnnotations, setShowAnnotations] = useState(true)
 
   // WebSocket connection for real-time updates
-  const wsUrl = typeof window !== "undefined" ? getWebSocketURL() : ""
+  const [wsUrl, setWsUrl] = useState<string>("")
+  
+  useEffect(() => {
+    // Only set WebSocket URL on client side
+    if (typeof window !== "undefined") {
+      const url = getWebSocketURL()
+      setWsUrl(url)
+    }
+  }, [])
+  
   const { isConnected, send } = useWebSocket({
     url: wsUrl,
+    reconnect: !!wsUrl, // Only reconnect if we have a valid URL
     onMessage: (data) => {
       // Handle different message types from WebSocket
       switch (data.type) {
