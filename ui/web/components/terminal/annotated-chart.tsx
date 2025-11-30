@@ -255,37 +255,28 @@ export function AnnotatedChart({
         // Set data on series
         console.log('Calling setData with', formattedData.length, 'candles')
         console.log('Sample candle:', formattedData[0])
+        // CRITICAL: Set data on series
         seriesRef.current.setData(formattedData)
         setChartError(null)
+        console.log('✅ Data set on series')
         
-        // Force chart to update and fit content - CRITICAL for display
-        try {
-          if (chartRef.current && chartRef.current.timeScale) {
-            const timeScale = chartRef.current.timeScale()
-            if (timeScale && typeof timeScale.fitContent === 'function') {
-              timeScale.fitContent()
-              console.log('✅ Chart fitted to content')
-            }
-          }
-        } catch (e) {
-          console.warn('Could not fit content:', e)
-        }
-        
-        // Also try scrollToPosition if available
-        try {
-          if (chartRef.current && chartRef.current.timeScale) {
-            const timeScale = chartRef.current.timeScale()
-            if (timeScale && formattedData.length > 0) {
-              // Scroll to most recent candle
-              const lastTime = formattedData[formattedData.length - 1].time
-              if (typeof timeScale.scrollToPosition === 'function') {
-                timeScale.scrollToPosition(lastTime, true)
+        // CRITICAL: fitContent MUST be called AFTER setData to make candles visible
+        // Use requestAnimationFrame to ensure DOM is updated
+        requestAnimationFrame(() => {
+          try {
+            if (chartRef.current && chartRef.current.timeScale) {
+              const timeScale = chartRef.current.timeScale()
+              if (timeScale && typeof timeScale.fitContent === 'function') {
+                timeScale.fitContent()
+                console.log('✅ Chart fitted to content - candles should be visible now')
+              } else {
+                console.warn('⚠️ fitContent method not found on timeScale')
               }
             }
+          } catch (e) {
+            console.error('❌ Error fitting content:', e)
           }
-        } catch (e) {
-          // Ignore - not critical
-        }
+        })
       } else {
         console.error('❌ No valid candles after formatting!')
         setChartError('No valid chart data - all candles were invalid')
