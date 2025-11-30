@@ -64,26 +64,39 @@ export function AnnotatedChart({
     chartRef.current = chart
 
       // Add candlestick series - lightweight-charts v5 API
-      // Check if addCandlestickSeries exists, otherwise use addSeries
+      // v5.0.9 uses addSeries with series type as first parameter
       let candlestickSeries
-      if (typeof (chart as any).addCandlestickSeries === 'function') {
-        candlestickSeries = (chart as any).addCandlestickSeries({
-          upColor: "#10b981",
-          downColor: "#ef4444",
-          borderVisible: false,
-          wickUpColor: "#10b981",
-          wickDownColor: "#ef4444",
-        })
-      } else if (typeof (chart as any).addSeries === 'function') {
-        candlestickSeries = (chart as any).addSeries('Candlestick', {
-          upColor: "#10b981",
-          downColor: "#ef4444",
-          borderVisible: false,
-          wickUpColor: "#10b981",
-          wickDownColor: "#ef4444",
-        })
-      } else {
-        throw new Error('Chart API not supported - neither addCandlestickSeries nor addSeries found')
+      try {
+        // Try v5 API first (addSeries with type)
+        if (typeof (chart as any).addSeries === 'function') {
+          candlestickSeries = (chart as any).addSeries('Candlestick', {
+            upColor: "#10b981",
+            downColor: "#ef4444",
+            borderVisible: false,
+            wickUpColor: "#10b981",
+            wickDownColor: "#ef4444",
+          })
+        } else if (typeof (chart as any).addCandlestickSeries === 'function') {
+          // Fallback to v4 API
+          candlestickSeries = (chart as any).addCandlestickSeries({
+            upColor: "#10b981",
+            downColor: "#ef4444",
+            borderVisible: false,
+            wickUpColor: "#10b981",
+            wickDownColor: "#ef4444",
+          })
+        } else {
+          console.error('Chart API error: No suitable method found')
+          return
+        }
+      } catch (error) {
+        console.error('Error creating candlestick series:', error)
+        return
+      }
+
+      if (!candlestickSeries) {
+        console.error('Failed to create candlestick series')
+        return
       }
 
       seriesRef.current = candlestickSeries
