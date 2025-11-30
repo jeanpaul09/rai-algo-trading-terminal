@@ -287,16 +287,24 @@ export function AnnotatedChart({
         const lineStyle = annotation.type === "sl" ? 2 : 0 // Dashed for SL, solid for TP
         
         try {
-          // Create price line - in v5, price lines are added to the series
-          const priceLine = series.createPriceLine({
-            price: annotation.price,
-            color: color,
-            lineWidth: annotation.type === "sl" ? 2 : 2,
-            lineStyle: lineStyle, // 0 = solid, 2 = dashed
-            axisLabelVisible: true,
-            title: annotation.label || `${annotation.type.toUpperCase()}: $${annotation.price.toFixed(2)}`,
-          })
-          priceLinesRef.current.push(priceLine)
+          // Create price line - in v5, price lines are created and added to the series
+          // Check if createPriceLine exists on series (v5 API)
+          const createPriceLineFn = (series as any).createPriceLine
+          if (typeof createPriceLineFn === 'function') {
+            const priceLine = createPriceLineFn.call(series, {
+              price: annotation.price,
+              color: color,
+              lineWidth: 2,
+              lineStyle: lineStyle, // 0 = solid, 2 = dashed
+              axisLabelVisible: true,
+              title: annotation.label || `${annotation.type.toUpperCase()}: $${annotation.price.toFixed(2)}`,
+            })
+            if (priceLine) {
+              priceLinesRef.current.push(priceLine)
+            }
+          } else {
+            console.warn("createPriceLine not available on series - using fallback")
+          }
         } catch (error) {
           console.error(`Error creating price line for ${annotation.type}:`, error)
         }
@@ -304,23 +312,27 @@ export function AnnotatedChart({
         // For regions, add two price lines
         const color = annotation.color || getAnnotationColor(annotation.type)
         try {
-          const line1 = series.createPriceLine({
-            price: annotation.price,
-            color: color + "80", // Semi-transparent
-            lineWidth: 1,
-            lineStyle: 2, // Dashed
-            axisLabelVisible: true,
-            title: annotation.label || "Region Start",
-          })
-          const line2 = series.createPriceLine({
-            price: annotation.priceEnd,
-            color: color + "80",
-            lineWidth: 1,
-            lineStyle: 2,
-            axisLabelVisible: true,
-            title: "Region End",
-          })
-          priceLinesRef.current.push(line1, line2)
+          const createPriceLineFn = (series as any).createPriceLine
+          if (typeof createPriceLineFn === 'function') {
+            const line1 = createPriceLineFn.call(series, {
+              price: annotation.price,
+              color: color + "80", // Semi-transparent
+              lineWidth: 1,
+              lineStyle: 2, // Dashed
+              axisLabelVisible: true,
+              title: annotation.label || "Region Start",
+            })
+            const line2 = createPriceLineFn.call(series, {
+              price: annotation.priceEnd,
+              color: color + "80",
+              lineWidth: 1,
+              lineStyle: 2,
+              axisLabelVisible: true,
+              title: "Region End",
+            })
+            if (line1) priceLinesRef.current.push(line1)
+            if (line2) priceLinesRef.current.push(line2)
+          }
         } catch (error) {
           console.error("Error creating region lines:", error)
         }
