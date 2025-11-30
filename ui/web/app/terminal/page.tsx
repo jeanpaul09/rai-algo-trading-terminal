@@ -303,20 +303,23 @@ export default function TerminalPage() {
     // Close all positions, etc.
   }
 
-  const handleStrategyModeChange = (strategyName: string, mode: "OFF" | "DEMO" | "LIVE") => {
+  const handleStrategyModeChange = async (strategyName: string, mode: "OFF" | "DEMO" | "LIVE") => {
     setStrategies((prev) =>
       prev.map((s) => (s.name === strategyName ? { ...s, mode } : s))
     )
+    // TODO: Send to backend
   }
 
-  const handleEditParameters = (strategyName: string) => {
-    // Open parameters dialog
-    console.log("Edit parameters for", strategyName)
+  const handleEditParameters = async (strategyName: string, params: Record<string, any>) => {
+    setStrategies((prev) =>
+      prev.map((s) => (s.name === strategyName ? { ...s, parameters: params } : s))
+    )
+    // TODO: Send to backend
   }
 
-  const handleTriggerBacktest = (strategyName: string) => {
-    // Trigger backtest
+  const handleTriggerBacktest = async (strategyName: string) => {
     console.log("Trigger backtest for", strategyName)
+    // TODO: Send to backend
   }
 
   const handleSendCommand = (command: string) => {
