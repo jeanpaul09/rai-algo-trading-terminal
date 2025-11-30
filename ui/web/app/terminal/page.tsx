@@ -186,7 +186,7 @@ export default function TerminalPage() {
   })
 
   // Load initial data
-  useEffect(() => {
+  useEffect(() => {(() => {
     setChartData(generateMockOHLCV())
     setAnnotations(generateMockAnnotations())
   }, [])
