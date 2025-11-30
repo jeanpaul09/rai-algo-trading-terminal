@@ -1,21 +1,30 @@
 """
 Generic bar-based backtesting engine.
 """
+"""
+Generic bar-based backtesting engine.
+"""
 import logging
-from typing import Callable, Optional, Dict, Any, Union, List
+from typing import Callable, Optional, Dict, Any, Union, List, TYPE_CHECKING
 from datetime import datetime
 from abc import ABC, abstractmethod
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
 except ImportError:
+    pd = None  # type: ignore
     PANDAS_AVAILABLE = False
 
 try:
     import polars as pl
     POLARS_AVAILABLE = True
 except ImportError:
+    pl = None  # type: ignore
     POLARS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -172,7 +181,7 @@ class BacktestEngine:
     
     def run(
         self,
-        price_data: Union[pd.DataFrame, pl.DataFrame],
+        price_data: Union[Any, Any],  # Union[pd.DataFrame, pl.DataFrame]
         strategy: Callable,
         initial_capital: Optional[float] = None,
         verbose: bool = False,
@@ -204,7 +213,7 @@ class BacktestEngine:
             initial_capital = self.initial_capital
         
         # Normalize DataFrame
-        is_polars = isinstance(price_data, pl.DataFrame) if POLARS_AVAILABLE else False
+        is_polars = (POLARS_AVAILABLE and pl is not None and isinstance(price_data, pl.DataFrame))
         
         if is_polars:
             # Convert to Pandas for easier manipulation (can optimize later)
@@ -215,7 +224,7 @@ class BacktestEngine:
             raise ImportError("Pandas is required for backtesting")
         
         # Ensure timestamp is a column
-        if isinstance(price_data.index, pd.DatetimeIndex):
+        if PANDAS_AVAILABLE and pd is not None and isinstance(price_data.index, pd.DatetimeIndex):
             price_data = price_data.reset_index()
             if 'date' in price_data.columns:
                 price_data = price_data.rename(columns={'date': 'timestamp'})

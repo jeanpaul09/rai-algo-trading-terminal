@@ -2,32 +2,40 @@
 Performance metrics for backtesting results.
 """
 import logging
-from typing import Union, Dict, Any, List
+from typing import Union, Dict, Any, List, TYPE_CHECKING
 import math
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+    import numpy as np
 
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
 except ImportError:
+    pd = None  # type: ignore
     PANDAS_AVAILABLE = False
 
 try:
     import polars as pl
     POLARS_AVAILABLE = True
 except ImportError:
+    pl = None  # type: ignore
     POLARS_AVAILABLE = False
 
 try:
     import numpy as np
     NUMPY_AVAILABLE = True
 except ImportError:
+    np = None  # type: ignore
     NUMPY_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 
 def evaluate_performance(
-    equity_curve: Union[pd.Series, pl.Series, List[float]],
+    equity_curve: Union[Any, Any, List[float]],  # Union[pd.Series, pl.Series, List[float]]
     risk_free_rate: float = 0.02,
     periods_per_year: int = 252,
 ) -> Dict[str, float]:
@@ -43,9 +51,9 @@ def evaluate_performance(
         Dictionary with performance metrics
     """
     # Convert to list if needed
-    if isinstance(equity_curve, pd.Series):
+    if PANDAS_AVAILABLE and pd is not None and isinstance(equity_curve, pd.Series):
         equity_values = equity_curve.values.tolist()
-    elif isinstance(equity_curve, pl.Series):
+    elif POLARS_AVAILABLE and pl is not None and isinstance(equity_curve, pl.Series):
         equity_values = equity_curve.to_list()
     else:
         equity_values = list(equity_curve)
@@ -101,7 +109,7 @@ def evaluate_performance(
 
 
 def calculate_sharpe_ratio(
-    returns: Union[List[float], np.ndarray],
+    returns: Union[List[float], Any],  # Union[List[float], Any]
     risk_free_rate: float = 0.02,
     periods_per_year: int = 252,
 ) -> float:
@@ -144,7 +152,7 @@ def calculate_sharpe_ratio(
 
 
 def calculate_sortino_ratio(
-    returns: Union[List[float], np.ndarray],
+    returns: Union[List[float], Any],
     risk_free_rate: float = 0.02,
     periods_per_year: int = 252,
 ) -> float:
@@ -197,7 +205,7 @@ def calculate_sortino_ratio(
 
 
 def calculate_max_drawdown(
-    equity_curve: Union[List[float], pd.Series, pl.Series],
+    equity_curve: Union[List[float], Any, Any],  # Union[List[float], pd.Series, pl.Series]
 ) -> tuple[float, float]:
     """
     Calculate maximum drawdown.
@@ -208,9 +216,9 @@ def calculate_max_drawdown(
     Returns:
         Tuple of (max_drawdown_absolute, max_drawdown_percentage)
     """
-    if isinstance(equity_curve, pd.Series):
+    if PANDAS_AVAILABLE and pd is not None and isinstance(equity_curve, pd.Series):
         values = equity_curve.values
-    elif isinstance(equity_curve, pl.Series):
+    elif POLARS_AVAILABLE and pl is not None and isinstance(equity_curve, pl.Series):
         values = equity_curve.to_numpy()
     else:
         values = list(equity_curve)
