@@ -746,15 +746,21 @@ User command: {cmd_text}"""
 
 @app.get("/api/terminal/chart/data")
 async def get_terminal_chart_data(symbol: str = "BTC/USDT", interval: str = "1h", limit: int = 100):
-    """Get OHLCV data for terminal chart."""
+    """Get OHLCV data for terminal chart - REAL DATA from Hyperliquid/Binance."""
     end_date = datetime.now()
     days = max(limit / 24, 30)  # At least 30 days
     start_date = end_date - timedelta(days=days)
     
+    # Try Hyperliquid first (real data)
     data = fetch_hyperliquid_market_data(symbol, start_date.isoformat(), end_date.isoformat())
     
-    # Format for terminal
-    return [
+    # Fallback to Binance if Hyperliquid fails (real data)
+    if not data:
+        print(f"⚠️ Hyperliquid failed for {symbol}, trying Binance fallback...")
+        data = fetch_binance_market_data(symbol, start_date.isoformat(), end_date.isoformat(), interval)
+    
+    # Return real data in chart format
+    chart_data = [
         {
             "time": int(d.timestamp.timestamp()),
             "open": d.open,
@@ -763,8 +769,16 @@ async def get_terminal_chart_data(symbol: str = "BTC/USDT", interval: str = "1h"
             "close": d.close,
             "volume": d.volume,
         }
-        for d in data[-limit:]
+        for d in (data[-limit:] if data else [])
     ]
+    
+    # Log for debugging
+    if chart_data:
+        print(f"✅ Terminal chart: {len(chart_data)} real candles for {symbol}")
+    else:
+        print(f"⚠️ Terminal chart: No data returned for {symbol}")
+    
+    return chart_data
 
 
 @app.get("/api/terminal/chart/annotations")

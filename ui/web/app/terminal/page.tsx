@@ -219,14 +219,24 @@ export default function TerminalPage() {
         }
         if (chartData && chartData.length > 0) {
           setChartData(chartData)
-          console.log("✅ Loaded chart data from backend:", chartData.length, "candles")
+          console.log("✅ Loaded REAL chart data from backend:", chartData.length, "candles")
         } else {
-          setChartData(generateMockOHLCV())
+          // Only use mock if backend URL is not set (local dev without backend)
+          if (!process.env.NEXT_PUBLIC_API_URL) {
+            console.log("⚠️ No backend URL - using mock data for local development")
+            setChartData(generateMockOHLCV())
+          } else {
+            console.log("⚠️ Backend returned empty chart data - will retry or wait for WebSocket")
+          }
         }
         if (annotations && annotations.length > 0) {
           setAnnotations(annotations)
+          console.log("✅ Loaded REAL annotations from backend:", annotations.length, "annotations")
         } else {
-          setAnnotations(generateMockAnnotations())
+          // Only use mock if backend URL is not set
+          if (!process.env.NEXT_PUBLIC_API_URL) {
+            setAnnotations(generateMockAnnotations())
+          }
         }
         if (brainFeed && brainFeed.length > 0) {
           setBrainFeedEntries(brainFeed)
@@ -237,10 +247,16 @@ export default function TerminalPage() {
           console.log("✅ Loaded strategies from backend:", strategies.length, "strategies")
         }
       } catch (error) {
-        console.error("❌ Error loading data from backend, using mock data:", error)
-        // Fallback to mock data
-        setChartData(generateMockOHLCV())
-        setAnnotations(generateMockAnnotations())
+        console.error("❌ Error loading data from backend:", error)
+        setBackendConnected(false)
+        // Only use mock data if backend URL is not configured (local dev)
+        if (!process.env.NEXT_PUBLIC_API_URL) {
+          console.log("⚠️ No backend URL configured - using mock data for development")
+          setChartData(generateMockOHLCV())
+          setAnnotations(generateMockAnnotations())
+        } else {
+          console.log("⚠️ Backend configured but failed - will retry or show empty state")
+        }
       }
     }
     
