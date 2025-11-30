@@ -702,6 +702,67 @@ User command: {cmd_text}"""
         }
 
 
+@app.get("/api/terminal/chart/data")
+async def get_terminal_chart_data(symbol: str = "BTC/USDT", interval: str = "1h", limit: int = 100):
+    """Get OHLCV data for terminal chart."""
+    end_date = datetime.now()
+    days = max(limit / 24, 30)  # At least 30 days
+    start_date = end_date - timedelta(days=days)
+    
+    data = fetch_hyperliquid_market_data(symbol, start_date.isoformat(), end_date.isoformat())
+    
+    # Format for terminal
+    return [
+        {
+            "time": int(d.timestamp.timestamp()),
+            "open": d.open,
+            "high": d.high,
+            "low": d.low,
+            "close": d.close,
+            "volume": d.volume,
+        }
+        for d in data[-limit:]
+    ]
+
+
+@app.get("/api/terminal/chart/annotations")
+async def get_terminal_chart_annotations(symbol: str = "BTC/USDT", strategy: Optional[str] = None):
+    """Get chart annotations for terminal."""
+    # TODO: Implement real annotations from trading history
+    return []
+
+
+@app.get("/api/terminal/brain-feed")
+async def get_terminal_brain_feed(limit: int = 100):
+    """Get brain feed entries for terminal."""
+    # TODO: Implement real brain feed from agent logs
+    return []
+
+
+@app.get("/api/terminal/strategies")
+async def get_terminal_strategies():
+    """Get strategy controls for terminal."""
+    strategies = []
+    try:
+        for file in Path("rai_algo/strategies").glob("*.py"):
+            if file.name.startswith("_") or file.name == "__init__.py":
+                continue
+            strategy_name = file.stem
+            strategies.append({
+                "name": strategy_name.replace("_", " ").title(),
+                "description": f"{strategy_name} strategy",
+                "category": "General",
+                "mode": "OFF",
+                "status": "idle",
+                "parameters": {},
+                "currentExposure": 0,
+                "lastPnL": 0,
+            })
+    except:
+        pass
+    return strategies
+
+
 @app.post("/api/live/start")
 async def start_live_trading(request: Dict[str, Any]):
     """Start live trading with Hyperliquid."""
