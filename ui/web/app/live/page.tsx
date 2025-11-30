@@ -18,8 +18,19 @@ export default async function LivePage() {
   // REAL DATA ONLY - throw error if backend unavailable
   const liveStatus = await fetchLiveStatus();
 
-  // Generate equity curve from real data if available
-  const liveEquityCurve = liveStatus.latest_equity_curve || []
+  // Generate equity curve from positions and PnL data
+  // For now, use empty array - can be populated from trading history
+  const liveEquityCurve: Array<{ timestamp: string; equity: number }> = []
+  
+  // If we have positions, we can estimate equity curve
+  if (liveStatus.positions && liveStatus.positions.length > 0) {
+    // Simple equity calculation from positions
+    const baseEquity = liveStatus.equity
+    liveEquityCurve.push({
+      timestamp: new Date().toISOString(),
+      equity: baseEquity
+    })
+  }
 
   const getRiskStatusIcon = (status: string) => {
     switch (status) {

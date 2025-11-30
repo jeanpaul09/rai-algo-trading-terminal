@@ -33,8 +33,12 @@ export function LiquidationsViewer() {
     const fetchData = async () => {
       try {
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+        if (!API_BASE_URL || API_BASE_URL === "http://localhost:8000") {
+          throw new Error("Backend API URL not configured")
+        }
         const cleanBaseUrl = (API_BASE_URL || "").replace(/\/+$/, "")
-        const url = `${cleanBaseUrl}/api/liquidations?exchange=binance`.replace(/([^:]\/)\/+/g, "$1")
+        // Use Hyperliquid (no geo restrictions) instead of Binance
+        const url = `${cleanBaseUrl}/api/liquidations?exchange=hyperliquid`.replace(/([^:]\/)\/+/g, "$1")
         const response = await fetch(url, {
           method: "GET",
           headers: {

@@ -13,13 +13,14 @@ import {
 import { useEffect, useState } from "react"
 
 interface Position {
-  trader_id: string
+  trader_id?: string
   symbol: string
   side: string
   size: number
   entry_price: number
-  current_price: number
-  pnl: number
+  current_price?: number
+  price?: number  // Backend might return 'price' instead of 'current_price'
+  pnl?: number
 }
 
 export function PositionsViewer() {
@@ -30,12 +31,20 @@ export function PositionsViewer() {
     const fetchData = async () => {
       try {
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+        if (!API_BASE_URL || API_BASE_URL === "http://localhost:8000") {
+          throw new Error("Backend API URL not configured")
+        }
         const cleanBaseUrl = (API_BASE_URL || "").replace(/\/+$/, "")
-        const url = `${cleanBaseUrl}/api/positions`.replace(/([^:]\/)\/+/g, "$1")
-        const response = await fetch(url)
+        const url = `${cleanBaseUrl}/api/positions?exchange=hyperliquid`.replace(/([^:]\/)\/+/g, "$1")
+        const response = await fetch(url, {
+          cache: "no-store",
+        })
         if (response.ok) {
           const data = await response.json()
-          setPositions(data || [])
+          // Backend returns { positions: [...] }, extract the array
+          setPositions(data.positions || [])
+        } else {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
       } catch (error) {
         console.error("Failed to fetch positions:", error)
@@ -50,8 +59,8 @@ export function PositionsViewer() {
   }, [])
 
   const totalPnL = positions.reduce((sum, p) => sum + (p.pnl || 0), 0)
-  const longPositions = positions.filter((p) => p.side === "long" || p.side === "BUY")
-  const shortPositions = positions.filter((p) => p.side === "short" || p.side === "SELL")
+  const longPositions = positions.filter((p) => p.side === "long" || p.side === "BUY" || p.side === "LONG")
+  const shortPositions = positions.filter((p) => p.side === "short" || p.side === "SELL" || p.side === "SHORT")
 
   return (
     <Card>
@@ -114,9 +123,9 @@ export function PositionsViewer() {
                         </TableCell>
                         <TableCell>{pos.size.toFixed(4)}</TableCell>
                         <TableCell>${pos.entry_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell>${pos.current_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className={pos.pnl >= 0 ? "text-green-500" : "text-red-500"}>
-                          {pos.pnl >= 0 ? "+" : ""}${pos.pnl.toFixed(2)}
+                        <TableCell>${(pos.current_price || pos.price || pos.entry_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className={(pos.pnl || 0) >= 0 ? "text-green-500" : "text-red-500"}>
+                          {(pos.pnl || 0) >= 0 ? "+" : ""}${(pos.pnl || 0).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))
