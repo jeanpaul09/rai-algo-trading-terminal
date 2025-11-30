@@ -233,7 +233,18 @@ export default function TerminalPage() {
     }
     
     loadData()
-  }, [selectedStrategy])
+    
+    // Set up polling fallback if WebSocket fails (refresh data every 5 seconds)
+    const pollingInterval = setInterval(() => {
+      if (!isConnected && apiUrl) {
+        // WebSocket not connected, use polling as fallback
+        fetchChartAnnotations("BTC/USDT").then(setAnnotations).catch(() => {})
+        fetchPerformanceComparison(selectedStrategy || "").then(setPerformanceComparisons).catch(() => {})
+      }
+    }, 5000) // Poll every 5 seconds if WebSocket is down
+    
+    return () => clearInterval(pollingInterval)
+  }, [selectedStrategy, isConnected, apiUrl])
   
   // Refresh performance data periodically when demo trading is active
   useEffect(() => {
