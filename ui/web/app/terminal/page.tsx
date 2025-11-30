@@ -78,45 +78,15 @@ export default function TerminalPage() {
     mode: "OFF",
     isActive: false,
     environment: "testnet",
-    connected: true,
+    connected: false, // Will be updated from backend
     lastUpdate: new Date().toISOString(),
   })
 
-  const [walletInfo, setWalletInfo] = useState<WalletInfo | undefined>({
-    address: "0x1234...5678",
-    balance: 125000,
-    marginUsed: 25000,
-    marginAvailable: 100000,
-    realizedPnL: 1250.5,
-    unrealizedPnL: 125.75,
-    environment: "testnet",
-  })
-
+  const [walletInfo, setWalletInfo] = useState<WalletInfo | undefined>(undefined)
   const [chartData, setChartData] = useState<OHLCVData[]>([])
   const [annotations, setAnnotations] = useState<ChartAnnotation[]>([])
   const [brainFeedEntries, setBrainFeedEntries] = useState<BrainFeedEntry[]>([])
-  const [strategies, setStrategies] = useState<StrategyControl[]>([
-    {
-      name: "MA Cross Momentum",
-      description: "Moving average crossover strategy",
-      category: "Trend",
-      mode: "OFF",
-      status: "idle",
-      parameters: { fast_period: 10, slow_period: 30 },
-      currentExposure: 0,
-      lastPnL: 0,
-    },
-    {
-      name: "Mean Reversion Arb",
-      description: "Mean reversion arbitrage strategy",
-      category: "Mean Reversion",
-      mode: "OFF",
-      status: "idle",
-      parameters: { lookback: 20, threshold: 0.02 },
-      currentExposure: 0,
-      lastPnL: 0,
-    },
-  ])
+  const [strategies, setStrategies] = useState<StrategyControl[]>([])
 
   const [commands, setCommands] = useState<AgentCommand[]>([])
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null)
