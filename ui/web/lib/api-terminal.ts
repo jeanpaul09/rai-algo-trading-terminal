@@ -14,8 +14,18 @@ import type {
   PerformanceComparison,
 } from "./types"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-const USE_BACKEND = typeof process.env.NEXT_PUBLIC_API_URL === "string" && process.env.NEXT_PUBLIC_API_URL !== ""
+// Get API URL - handle both client and server side
+function getApiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    // Server-side
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  }
+  // Client-side - Next.js exposes NEXT_PUBLIC_ vars at build time
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+}
+
+const API_BASE_URL = getApiBaseUrl()
+const USE_BACKEND = API_BASE_URL && API_BASE_URL !== "http://localhost:8000"
 
 async function fetchTerminalAPI<T>(
   endpoint: string,
@@ -30,8 +40,13 @@ async function fetchTerminalAPI<T>(
     throw new Error("No API URL configured and no fallback provided")
   }
 
+  // Ensure endpoint starts with / and remove double slashes
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
+  const cleanBaseUrl = API_BASE_URL.replace(/\/+$/, "") // Remove trailing slashes
+  const url = `${cleanBaseUrl}${cleanEndpoint}`.replace(/([^:]\/)\/+/g, "$1") // Remove double slashes except after protocol
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(url, {
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -210,14 +225,16 @@ export function getWebSocketURL(): string {
     return "" // Server-side, return empty
   }
   
-  if (!USE_BACKEND || !API_BASE_URL) {
+  const apiUrl = getApiBaseUrl()
+  if (!apiUrl || apiUrl === "http://localhost:8000") {
     // Return empty string when no backend is configured (won't connect)
     return ""
   }
   
   try {
-    const wsProtocol = API_BASE_URL.startsWith("https") ? "wss:" : "ws:"
-    const baseURL = API_BASE_URL.replace(/^https?:\/\//, "")
+    const wsProtocol = apiUrl.startsWith("https") ? "wss:" : "ws:"
+    // Remove protocol and trailing slashes, then add ws/terminal
+    const baseURL = apiUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "")
     return `${wsProtocol}//${baseURL}/ws/terminal`
   } catch (error) {
     console.warn("Failed to generate WebSocket URL:", error)
