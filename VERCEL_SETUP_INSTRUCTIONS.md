@@ -1,16 +1,18 @@
 # Vercel Setup Instructions
 
 ## ✅ Fix Applied
-Removed `rootDirectory` from `vercel.json` (not allowed in schema). This must be set in Vercel dashboard instead.
+Removed `rootDirectory` from `vercel.json` (not allowed in schema). Build commands now explicitly `cd` into `ui/web`.
 
 ## 🔧 Required Vercel Configuration
 
-### Step 1: Set Root Directory in Vercel Dashboard
+### Step 1: Set Root Directory in Vercel Dashboard (Optional but Recommended)
 1. Go to your Vercel project: https://vercel.com/dashboard
 2. Click on your project → **Settings**
 3. Go to **General** → **Root Directory**
 4. Set root directory to: `ui/web`
 5. Click **Save**
+   
+**Note**: Even if root directory is set, `vercel.json` commands will work because they explicitly `cd` into `ui/web`.
 
 ### Step 2: Set Environment Variable
 1. In Vercel project → **Settings** → **Environment Variables**
@@ -27,9 +29,9 @@ Removed `rootDirectory` from `vercel.json` (not allowed in schema). This must be
 
 ## 📝 What This Does
 
-- **Root Directory (`ui/web`)**: Tells Vercel where your Next.js app lives
+- **Root Directory (`ui/web`)**: Tells Vercel where your Next.js app lives (optional, but helps with file paths)
 - **Environment Variable**: Makes backend URL available to frontend
-- **Build Commands**: Now simplified (no need for `cd` since root directory is set)
+- **Build Commands**: Explicitly `cd` into `ui/web` to ensure correct directory, works with or without root directory setting
 
 ## ✅ After Configuration
 
