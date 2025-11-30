@@ -69,11 +69,19 @@ export function AnnotatedChart({
 
     const container = chartContainerRef.current
     
-    // Wait for container to have dimensions
-    if (container.clientWidth === 0 || container.clientHeight === 0) {
+    // CRITICAL: Wait for container to have valid dimensions
+    // The assertion error happens when dimensions are 0 or invalid
+    const containerWidth = container.clientWidth
+    const containerHeight = container.clientHeight || height || 500
+    
+    console.log(`Container dimensions: ${containerWidth}x${containerHeight}`)
+    
+    if (containerWidth === 0) {
+      console.log('⚠️ Container has zero width, waiting...')
       const checkDimensions = setInterval(() => {
-        if (container.clientWidth > 0 && container.clientHeight > 0) {
+        if (container.clientWidth > 0) {
           clearInterval(checkDimensions)
+          console.log(`✅ Container now has width: ${container.clientWidth}`)
           setIsInitialized(false) // Retry initialization
         }
       }, 100)
