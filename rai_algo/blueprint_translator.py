@@ -211,9 +211,13 @@ from rai_algo.base import (
         
         risk_kwargs = ", ".join(risk_params) if risk_params else ""
         
+        # Build init params string (avoid backslash in f-string)
+        init_params_str = ",\n".join(init_params) if init_params else "        **kwargs"
+        param_assignments = self._generate_param_assignments(params)
+        
         return f'''    def __init__(
         self,
-{",\\n".join(init_params) if init_params else "        **kwargs"}
+{init_params_str}
     ):
         """
         Initialize {self.blueprint["name"]} strategy.
@@ -224,7 +228,7 @@ from rai_algo.base import (
             **kwargs
         )
         # Store parameters
-{self._generate_param_assignments(params)}'''
+{param_assignments}'''
     
     def _generate_param_assignments(self, params: Dict[str, Any]) -> str:
         """Generate parameter assignment statements."""
