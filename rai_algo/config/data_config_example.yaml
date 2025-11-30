@@ -1,0 +1,60 @@
+# Example configuration file for data sources
+# Copy this file and customize for your environment
+
+# Cache settings
+cache:
+  directory: ".cache/rai_algo/data"
+  enabled: true
+  format: "parquet"  # or "csv"
+
+# Crypto data sources
+crypto:
+  default_exchange: "binance"  # Options: binance, coinbase, kraken, etc.
+  exchanges:
+    binance:
+      api_key_env: "BINANCE_API_KEY"
+      api_secret_env: "BINANCE_API_SECRET"
+      rate_limit: true
+    coinbase:
+      api_key_env: "COINBASE_API_KEY"
+      api_secret_env: "COINBASE_API_SECRET"
+      rate_limit: true
+
+# Stock data sources
+stocks:
+  default_provider: "yfinance"  # Options: yfinance, alpaca, etc.
+  providers:
+    yfinance:
+      # yfinance doesn't require API keys for basic usage
+      cache_enabled: true
+    alpaca:
+      api_key_env: "ALPACA_API_KEY"
+      api_secret_env: "ALPACA_API_SECRET"
+      base_url: "https://paper-api.alpaca.markets"  # or "https://api.alpaca.markets"
+
+# Prediction market sources
+prediction_markets:
+  default_platform: "polymarket"  # Options: polymarket, kalshi
+  platforms:
+    polymarket:
+      api_key_env: "POLYMARKET_API_KEY"
+      base_url: "https://clob.polymarket.com"
+    kalshi:
+      api_key_env: "KALSHI_API_KEY"
+      api_secret_env: "KALSHI_API_SECRET"
+      base_url: "https://trading-api.kalshi.com"
+
+# Backtest defaults
+backtest:
+  initial_capital: 10000.0
+  fee_rate: 0.001  # 0.1%
+  slippage_rate: 0.0005  # 0.05%
+  risk_free_rate: 0.02  # 2% annual
+
+# Data validation
+validation:
+  require_timestamp: true
+  require_ohlcv: true
+  min_bars: 10
+
+

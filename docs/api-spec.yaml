@@ -1,0 +1,159 @@
+openapi: 3.0.0
+info:
+  title: PhoneExport API Specification
+  version: 1.0.0
+  description: Reconstructed API specification from reverse engineering
+servers:
+  - url: ${PHONEXPORT_BASE_URL}/api
+    description: Production API
+
+paths:
+  /auth/login:
+    post:
+      summary: User login
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      summary: User logout
+      tags: [Authentication]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successful logout
+
+  /auth/me:
+    get:
+      summary: Get current user
+      tags: [Authentication]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /inventory:
+    get:
+      summary: List inventory items
+      tags: [Inventory]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          schema:
+            type: string
+        - name: filter
+          in: query
+          schema:
+            type: object
+      responses:
+        '200':
+          description: Inventory list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryItem'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [admin, manager, rep, reseller]
+        resellerId:
+          type: string
+          nullable: true
+
+    InventoryItem:
+      type: object
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        warehouseId:
+          type: string
+        quantity:
+          type: integer
+        cost:
+          type: number
+        supplierId:
+          type: string
+          nullable: true
+        batchCode:
+          type: string
+          nullable: true
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+

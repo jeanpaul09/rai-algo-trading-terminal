@@ -1,0 +1,18 @@
+# Core dependencies
+numpy>=1.20.0
+pandas>=1.5.0
+requests>=2.28.0  # HTTP requests for API calls
+
+# Optional but recommended
+polars>=0.19.0  # Faster DataFrame operations
+pyarrow>=10.0.0  # For Parquet file support
+
+# Data sources
+ccxt>=4.0.0  # Crypto exchange data
+yfinance>=0.2.0  # Stock market data
+
+# Configuration
+pyyaml>=6.0  # For YAML config files
+
+# Exchange-specific (optional)
+# eth-account>=0.8.0  # For Hyperliquid wallet signing (recommended for production)

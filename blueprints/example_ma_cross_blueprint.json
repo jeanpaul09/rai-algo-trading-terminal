@@ -1,0 +1,51 @@
+{
+  "name": "moving_average_cross",
+  "description": "Simple Moving Average Crossover Strategy - Generates BUY signals when fast MA crosses above slow MA, and SELL signals when fast MA crosses below slow MA",
+  "parameters": {
+    "fast_period": 10,
+    "slow_period": 30,
+    "ma_type": "SMA"
+  },
+  "indicators": [
+    {
+      "name": "fast_ma",
+      "type": "SMA",
+      "params": {
+        "period": 10
+      }
+    },
+    {
+      "name": "slow_ma",
+      "type": "SMA",
+      "params": {
+        "period": 30
+      }
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      "fast_ma crosses above slow_ma",
+      "fast_ma > slow_ma"
+    ],
+    "short": [
+      "fast_ma crosses below slow_ma",
+      "fast_ma < slow_ma"
+    ]
+  },
+  "exit_rules": {
+    "long": [
+      "fast_ma crosses below slow_ma"
+    ],
+    "short": [
+      "fast_ma crosses above slow_ma"
+    ]
+  },
+  "risk_management": {
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.05,
+    "max_position_size": 0.2,
+    "risk_per_trade": 0.02
+  }
+}
+
+

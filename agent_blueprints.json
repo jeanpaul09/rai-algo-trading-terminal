@@ -1,0 +1,255 @@
+[
+  {
+    "name": "Sentiment Collection Agent",
+    "type": "data_collection",
+    "description": "Continuously monitors and analyzes sentiment from multiple sources (social media, news, forums) to generate real-time sentiment scores for trading instruments. Processes millions of data points daily using NLP models to quantify market psychology.",
+    "markets": ["crypto", "stocks", "prediction markets"],
+    "data_sources": [
+      "Twitter/X API (real-time stream)",
+      "Reddit API (r/cryptocurrency, r/wallstreetbets, r/stocks, r/investing)",
+      "Discord servers (crypto communities, trading groups)",
+      "Telegram channels (crypto projects, trading signals)",
+      "News APIs (NewsAPI, Alpha Vantage News, Bloomberg, Reuters)",
+      "Financial forums (Seeking Alpha, StockTwits, TradingView comments)",
+      "YouTube comments (crypto/stock channels)",
+      "Earnings call transcripts (SEC filings, company websites)"
+    ],
+    "data_collection_frequency": "real-time (streaming) + batch (hourly aggregations)",
+    "processing_techniques": [
+      "VADER sentiment analysis (rule-based, fast)",
+      "BERT-based sentiment (transformer model, high accuracy)",
+      "FinBERT (financial domain-specific BERT)",
+      "RoBERTa for social media",
+      "Emotion detection (fear, greed, FOMO, FUD)",
+      "Influence scoring (weight by follower count, engagement)",
+      "Spam/bot detection (filter low-quality signals)",
+      "Sentiment momentum calculation (rate of change)",
+      "Volume-weighted sentiment (weight by engagement metrics)"
+    ],
+    "output_metrics": [
+      "7-day sentiment score (-1.0 to +1.0)",
+      "3-day sentiment momentum (rate of change)",
+      "1-day sentiment score",
+      "Sentiment volume (number of mentions)",
+      "Sentiment confidence (agreement across sources)",
+      "Influencer sentiment (weighted by follower count)",
+      "Emotion breakdown (fear %, greed %, neutral %)",
+      "Sentiment by source (Twitter score, Reddit score, News score)"
+    ],
+    "influential_people_tracking": [
+      "Crypto: Elon Musk, Vitalik Buterin, Changpeng Zhao, Michael Saylor, Cathie Wood, Raoul Pal",
+      "Stocks: Warren Buffett, Ray Dalio, Jim Cramer, Michael Burry, Bill Ackman, David Einhorn",
+      "Fed/Policy: Jerome Powell, Treasury officials, central bank announcements",
+      "Analysts: Top-rated analysts from major banks (Goldman, JPMorgan, etc.)",
+      "Influencers: Track verified accounts with >100K followers mentioning trading instruments"
+    ],
+    "real_time_monitoring": {
+      "twitter_streaming": "Monitor Twitter API v2 filtered stream for keywords, hashtags, mentions of tracked instruments and influencers",
+      "reddit_streaming": "Monitor Reddit API for new posts/comments in relevant subreddits",
+      "news_alerts": "Set up alerts for breaking news from major financial news sources",
+      "influencer_alerts": "Track when influential people post about tracked instruments (immediate notification)"
+    },
+    "data_storage": {
+      "raw_data": "Store all collected posts/articles with timestamps, source, raw text",
+      "processed_sentiment": "Store sentiment scores with timestamps, aggregated by instrument",
+      "influencer_activity": "Track influencer posts with sentiment, engagement metrics, price impact analysis",
+      "retention": "Keep raw data for 90 days, aggregated sentiment for 2 years"
+    },
+    "integration_with_strategies": {
+      "sentiment_trading_strategy": "Provides sentiment scores, momentum, volume metrics for entry/exit signals",
+      "event_driven_strategy": "Alerts on breaking news, influencer activity for rapid response",
+      "risk_management": "Uses sentiment as risk filter (avoid trades during extreme FUD/FOMO)",
+      "position_sizing": "Adjusts position sizes based on sentiment confidence and agreement"
+    },
+    "technical_requirements": {
+      "api_keys": ["Twitter API v2 (Essential or higher)", "Reddit API", "NewsAPI", "Alpha Vantage", "Telegram Bot API"],
+      "infrastructure": "Dedicated server with 8+ CPU cores, 32GB+ RAM for real-time processing",
+      "nlp_models": "Hugging Face transformers (FinBERT, RoBERTa), VADER, custom fine-tuned models",
+      "database": "Time-series database (InfluxDB, TimescaleDB) for sentiment metrics, PostgreSQL for raw data",
+      "scalability": "Handle 100K+ messages/day, process in < 5 seconds latency for critical alerts"
+    },
+    "known_strengths": "Captures market psychology before price moves. Crypto shows 0.4-0.6 correlation between Reddit/Twitter sentiment and price. Can detect breaking news and influencer activity in real-time. Academic research shows 10-15% alpha in event-driven scenarios.",
+    "known_failures": "False signals from misinformation and manipulation. Pump-and-dump schemes create false positive sentiment. Requires sophisticated spam/bot filtering. Sentiment can be lagging if not processed fast enough. API rate limits can restrict data collection.",
+    "complexity": "high"
+  },
+  {
+    "name": "News Scraper & Event Detection Agent",
+    "type": "data_collection",
+    "description": "Continuously scrapes and analyzes breaking news, financial events, and announcements from multiple sources. Identifies market-moving events in real-time, tracks influential people's statements, and categorizes news by impact level. Processes news articles using NLP to extract entities, events, and sentiment.",
+    "markets": ["crypto", "stocks", "prediction markets"],
+    "data_sources": [
+      "Financial news: Bloomberg, Reuters, Financial Times, Wall Street Journal, CNBC, MarketWatch",
+      "Crypto news: CoinDesk, CoinTelegraph, The Block, Decrypt",
+      "Government sources: SEC filings (EDGAR), Fed announcements, Treasury statements",
+      "Company sources: Earnings announcements, press releases, investor relations",
+      "Regulatory: CFTC, SEC enforcement actions, exchange announcements",
+      "Social media: Twitter verified accounts, LinkedIn company pages",
+      "Alternative data: Satellite imagery (for commodities), patent filings, job postings"
+    ],
+    "data_collection_frequency": "Real-time (RSS feeds, API webhooks) + scheduled scraping (every 5-15 minutes)",
+    "processing_techniques": [
+      "Named Entity Recognition (NER) - extract companies, people, tickers, crypto symbols",
+      "Event extraction - identify earnings, mergers, regulatory actions, partnerships",
+      "News classification - categorize by type (earnings, M&A, regulatory, product launch)",
+      "Impact scoring - rate news importance (1-10 scale based on source, entity size, event type)",
+      "Duplicate detection - identify same story across multiple sources",
+      "Timeline construction - track event progression (rumor → announcement → confirmation)",
+      "Influencer tracking - monitor when influential people comment on news",
+      "Sentiment analysis - quantify news sentiment (positive/negative/neutral)",
+      "Relevance filtering - only process news relevant to tracked instruments"
+    ],
+    "output_metrics": [
+      "Breaking news alerts (real-time notifications)",
+      "Event timeline (rumor → announcement → market reaction)",
+      "News impact score (1-10, based on source credibility, entity size, event magnitude)",
+      "Entity mentions (which companies/cryptos mentioned in news)",
+      "Event categorization (earnings, M&A, regulatory, product, partnership, etc.)",
+      "Influencer reactions (track when tracked people comment on news)",
+      "News sentiment score (-1.0 to +1.0)",
+      "Market reaction prediction (historical pattern matching)"
+    ],
+    "influential_people_tracking": [
+      "CEOs/Executives: Track statements from CEOs of major companies (Apple, Tesla, Microsoft, etc.)",
+      "Crypto Founders: Vitalik Buterin (Ethereum), Changpeng Zhao (Binance), Brian Armstrong (Coinbase)",
+      "Regulators: SEC Chair, CFTC Chair, Fed Chair, Treasury Secretary",
+      "Analysts: Top analysts from major investment banks",
+      "Influencers: Financial YouTubers, Twitter personalities with >500K followers",
+      "Politicians: Track policy statements affecting markets (tax, regulation, stimulus)"
+    ],
+    "real_time_monitoring": {
+      "rss_feeds": "Monitor RSS feeds from major news sources (update every 1-5 minutes)",
+      "api_webhooks": "Use NewsAPI, Alpha Vantage News webhooks for instant notifications",
+      "sec_filings": "Monitor EDGAR API for new 8-K, 10-Q, 10-K filings (real-time)",
+      "social_media": "Track verified accounts of CEOs, companies, regulators",
+      "earnings_calendar": "Monitor earnings announcement times, track actual vs expected",
+      "fed_calendar": "Track FOMC meetings, Fed speeches, policy announcements"
+    },
+    "event_detection": {
+      "earnings_announcements": "Detect earnings releases, compare actual vs expected, flag surprises",
+      "mergers_acquisitions": "Identify M&A rumors, announcements, regulatory approvals",
+      "regulatory_actions": "Detect SEC enforcement, CFTC actions, exchange delistings",
+      "product_launches": "Identify new product announcements, partnerships, technology releases",
+      "macro_events": "Fed rate decisions, employment reports, inflation data, GDP releases",
+      "crypto_events": "Exchange listings, protocol upgrades, governance proposals, hack announcements"
+    },
+    "data_storage": {
+      "raw_articles": "Store full article text, source, timestamp, URL",
+      "processed_events": "Store extracted events with entities, impact scores, categories",
+      "event_timeline": "Track event progression (rumor → announcement → confirmation → market reaction)",
+      "influencer_activity": "Store influencer comments/reactions to news with timestamps",
+      "retention": "Keep articles for 1 year, events for 3 years, timelines indefinitely"
+    },
+    "integration_with_strategies": {
+      "sentiment_trading": "Provides news sentiment scores, breaking news alerts for rapid entry",
+      "earnings_drift_strategy": "Alerts on earnings announcements, tracks surprise magnitude",
+      "event_timing_strategy": "Identifies events for pre-event positioning, post-event mean reversion",
+      "risk_management": "Flags high-impact news that may cause volatility, suggests position reduction",
+      "prediction_markets": "Tracks events relevant to prediction market contracts, identifies information flow"
+    },
+    "alert_system": {
+      "breaking_news": "Immediate alerts for high-impact news (impact score > 7)",
+      "influencer_activity": "Alert when tracked influencers post about instruments",
+      "earnings_surprises": "Alert on earnings announcements with >5% surprise",
+      "regulatory_actions": "Immediate alerts for SEC/CFTC actions affecting tracked instruments",
+      "market_moving_events": "Alert on events historically correlated with >3% price moves"
+    },
+    "technical_requirements": {
+      "api_keys": ["NewsAPI", "Alpha Vantage News", "SEC EDGAR API", "Twitter API v2", "Bloomberg API (if available)"],
+      "scraping_tools": "BeautifulSoup, Scrapy, Selenium (for JavaScript-rendered sites)",
+      "nlp_libraries": "spaCy (NER), Transformers (BERT for classification), custom event extraction models",
+      "infrastructure": "Dedicated server, 100+ requests/minute capacity, proxy rotation for scraping",
+      "database": "PostgreSQL for articles/events, Elasticsearch for full-text search, Redis for caching",
+      "rate_limiting": "Respect API rate limits, implement exponential backoff, use multiple API keys if needed"
+    },
+    "known_strengths": "Provides early signals before price moves. Can detect breaking news in < 1 minute. Event timeline tracking helps identify trading opportunities. Academic research shows news-based strategies achieve 10-15% alpha. Influencer tracking captures market-moving statements immediately.",
+    "known_failures": "False positives from rumors that don't materialize. News can be lagging (price already moved). Requires sophisticated filtering to avoid noise. Some news sources have paywalls/rate limits. Duplicate detection is challenging (same story from multiple sources).",
+    "complexity": "high"
+  },
+  {
+    "name": "Influencer Activity Tracker Agent",
+    "type": "data_collection",
+    "description": "Specialized agent that monitors and analyzes activity from influential people in finance and crypto. Tracks their posts, statements, portfolio changes, and predicts market impact. Integrates with sentiment and news agents to provide comprehensive influencer intelligence.",
+    "markets": ["crypto", "stocks"],
+    "data_sources": [
+      "Twitter/X verified accounts",
+      "LinkedIn posts (for executives)",
+      "YouTube videos/channels",
+      "Podcast appearances",
+      "SEC Form 4 filings (insider trading)",
+      "13F filings (institutional holdings)",
+      "Company earnings call transcripts",
+      "Conference presentations (transcripts, videos)"
+    ],
+    "tracked_influencers": {
+      "crypto": [
+        "Elon Musk (@elonmusk) - Tesla CEO, Dogecoin/Bitcoin influence",
+        "Vitalik Buterin (@VitalikButerin) - Ethereum founder",
+        "Changpeng Zhao (@cz_binance) - Binance founder",
+        "Michael Saylor (@michael_saylor) - MicroStrategy CEO, Bitcoin advocate",
+        "Cathie Wood (@CathieDWood) - ARK Invest, tech/crypto focus",
+        "Raoul Pal (@RaoulGMI) - Real Vision, macro/crypto",
+        "PlanB (@100trillionUSD) - Bitcoin stock-to-flow model",
+        "Anthony Pompliano (@APompliano) - Bitcoin advocate"
+      ],
+      "stocks": [
+        "Warren Buffett - Berkshire Hathaway CEO",
+        "Ray Dalio - Bridgewater founder",
+        "Jim Cramer - CNBC Mad Money",
+        "Michael Burry - Scion Asset Management",
+        "Bill Ackman - Pershing Square",
+        "David Einhorn - Greenlight Capital",
+        "Chamath Palihapitiya - Social Capital",
+        "Chamath Palihapitiya - Social Capital"
+      ],
+      "regulators": [
+        "Jerome Powell - Fed Chair",
+        "Gary Gensler - SEC Chair",
+        "Rostin Behnam - CFTC Chair",
+        "Janet Yellen - Treasury Secretary"
+      ]
+    },
+    "monitoring_frequency": "Real-time (streaming) for social media, daily for SEC filings, weekly for 13F filings",
+    "tracked_activities": [
+      "Social media posts (Twitter, LinkedIn)",
+      "Mentions of specific tickers/cryptos",
+      "Portfolio disclosures (13F filings, Form 4)",
+      "Public statements (interviews, podcasts, earnings calls)",
+      "Trading activity (insider buying/selling from Form 4)",
+      "Position changes (quarterly 13F updates)",
+      "Sentiment shifts (tracking sentiment of their posts over time)"
+    ],
+    "impact_analysis": {
+      "historical_correlation": "Track price movements following influencer posts (measure correlation)",
+      "engagement_metrics": "Weight impact by post engagement (likes, retweets, replies)",
+      "timing_analysis": "Measure time between post and price movement",
+      "follow_through": "Track if influencer actions match statements (e.g., did they actually buy/sell?)",
+      "credibility_scoring": "Rate influencers by historical accuracy of market calls"
+    },
+    "output_metrics": [
+      "Influencer activity feed (real-time posts with sentiment)",
+      "Market impact prediction (expected price move based on historical patterns)",
+      "Credibility score (0-1, based on historical accuracy)",
+      "Engagement-weighted sentiment (sentiment * engagement metrics)",
+      "Portfolio tracking (what they own, recent changes)",
+      "Alert system (immediate notification when high-impact influencer posts)"
+    ],
+    "integration_with_strategies": {
+      "sentiment_trading": "Provides influencer sentiment scores, weighted by credibility and engagement",
+      "event_driven": "Alerts on influencer activity for rapid response trading",
+      "insider_trading_strategy": "Uses Form 4 filings to track insider buying/selling (legitimate strategy)",
+      "13F_copycat": "Tracks 13F filings to identify what successful investors are buying (with delay)"
+    },
+    "technical_requirements": {
+      "api_keys": ["Twitter API v2", "LinkedIn API", "SEC EDGAR API"],
+      "data_sources": "SEC EDGAR for Form 4 and 13F filings, social media APIs",
+      "processing": "NLP for sentiment analysis, entity extraction (ticker/crypto mentions)",
+      "database": "PostgreSQL for influencer data, activity logs, impact analysis",
+      "alerting": "Real-time webhook/notification system for high-impact posts"
+    },
+    "known_strengths": "Influencer posts can move markets significantly (Elon Musk tweets moved Dogecoin 20-50%). Insider trading data (Form 4) is public and legally trackable. 13F filings reveal what successful investors are buying. Early detection of influencer activity provides trading edge.",
+    "known_failures": "Not all influencer posts move markets (requires filtering). Some influencers are unreliable (pump-and-dump schemes). 13F data is delayed (45 days after quarter end). Insider trading data may be lagging. False signals if influencer is joking/speculating vs serious.",
+    "complexity": "medium"
+  }
+]
+
+

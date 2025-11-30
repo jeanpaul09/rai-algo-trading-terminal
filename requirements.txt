@@ -1,0 +1,16 @@
+# RAI-ALGO Framework Dependencies
+# Core dependencies for live trading bot
+
+# HTTP requests for exchange APIs
+requests>=2.31.0
+
+# Note: Standard library modules used:
+# - hmac (for API signatures)
+# - hashlib (for hashing)
+# - threading (for concurrent execution)
+# - logging (for logging)
+# - dataclasses (for data structures)
+# - abc (for abstract base classes)
+# - enum (for enums)
+# - datetime (for timestamps)
+# - typing (for type hints)

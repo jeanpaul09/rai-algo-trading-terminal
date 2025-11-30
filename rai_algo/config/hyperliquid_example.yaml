@@ -1,0 +1,49 @@
+# Hyperliquid Exchange Configuration Example
+#
+# Copy this file to hyperliquid.yaml and adjust values as needed.
+# DO NOT commit hyperliquid.yaml with real secrets to version control.
+#
+# To use this config:
+# 1. Copy this file: cp hyperliquid_example.yaml hyperliquid.yaml
+# 2. Set environment variables or update the config file with your credentials
+# 3. Use the config in your code or set environment variables:
+#    - HYPERLIQUID_PRIVATE_KEY: Your wallet private key (for signing transactions)
+#    - HYPERLIQUID_ADDRESS: Your wallet address (optional, for some operations)
+#    - HYPERLIQUID_TESTNET: Set to "true" to use testnet (optional)
+
+hyperliquid:
+  # API endpoints
+  base_url: "https://api.hyperliquid.xyz"
+  ws_url: "wss://api.hyperliquid.xyz/ws"
+  
+  # Testnet configuration (if available)
+  # testnet_base_url: "https://api.hyperliquid-testnet.xyz"
+  # testnet_ws_url: "wss://api.hyperliquid-testnet.xyz/ws"
+  
+  # Trading settings
+  default_leverage: 5
+  max_leverage: 10
+  
+  # Fee rates (as decimal, e.g., 0.0005 = 0.05%)
+  fee_rate_taker: 0.0005
+  fee_rate_maker: 0.0002
+  
+  # Risk limits
+  risk_limits:
+    # Maximum position notional value (in quote currency, e.g., USDC)
+    max_position_notional: 50000
+    
+    # Maximum exposure per symbol as fraction of portfolio (0.2 = 20%)
+    max_symbol_exposure: 0.2
+    
+    # Maximum leverage allowed
+    max_leverage: 10
+    
+    # Maximum daily loss (as fraction of portfolio, e.g., 0.05 = 5%)
+    max_daily_loss: 0.05
+  
+  # Authentication (set via environment variables, not in this file)
+  # private_key: "${HYPERLIQUID_PRIVATE_KEY}"  # From environment
+  # address: "${HYPERLIQUID_ADDRESS}"  # From environment (optional)
+
+

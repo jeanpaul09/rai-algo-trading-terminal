@@ -1,0 +1,44 @@
+{
+  "name": "rsi_mean_reversion",
+  "description": "RSI Mean Reversion Strategy - Buy when RSI is oversold (< 30), sell when RSI is overbought (> 70)",
+  "parameters": {
+    "rsi_period": 14,
+    "oversold_level": 30,
+    "overbought_level": 70
+  },
+  "indicators": [
+    {
+      "name": "rsi",
+      "type": "RSI",
+      "params": {
+        "period": 14
+      }
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      "rsi < 30",
+      "rsi crosses above 30"
+    ],
+    "short": [
+      "rsi > 70",
+      "rsi crosses below 70"
+    ]
+  },
+  "exit_rules": {
+    "long": [
+      "rsi > 50"
+    ],
+    "short": [
+      "rsi < 50"
+    ]
+  },
+  "risk_management": {
+    "stop_loss_pct": 0.03,
+    "take_profit_pct": 0.04,
+    "max_position_size": 0.15,
+    "risk_per_trade": 0.015
+  }
+}
+
+
