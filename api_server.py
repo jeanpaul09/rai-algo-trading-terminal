@@ -157,7 +157,15 @@ def fetch_hyperliquid_market_data(symbol: str, start_date: str, end_date: str) -
                 # Filter by time range
                 if start_ts <= candle_time <= end_ts:
                     try:
+                        # Hyperliquid returns milliseconds, convert to seconds for datetime
                         ts = datetime.fromtimestamp(candle_time / 1000)
+                        # Validate the timestamp is reasonable (not in future, not too old)
+                        now_ts = datetime.now().timestamp()
+                        candle_ts = ts.timestamp()
+                        # Allow candles up to 1 hour in the future (clock skew tolerance)
+                        if candle_ts > now_ts + 3600:
+                            print(f"⚠️ Skipping future candle: {ts} (timestamp: {candle_time})")
+                            continue
                         market_data.append(MarketData(
                             timestamp=ts,
                             open=float(candle[1]),
