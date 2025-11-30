@@ -427,7 +427,7 @@ async def get_overview():
     # Try Hyperliquid first
     try:
         hyperliquid_data = fetch_hyperliquid_market_data(
-            "BTC",
+            "BTC/USDT",
             (datetime.now() - timedelta(days=90)).isoformat(),
             datetime.now().isoformat(),
         )
