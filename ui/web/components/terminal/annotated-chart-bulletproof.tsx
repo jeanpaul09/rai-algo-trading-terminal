@@ -120,7 +120,7 @@ export function AnnotatedChart({
         console.log('✅ Chart object created')
 
         // Add candlestick series
-        const candlestickSeries = chart.addSeries('Candlestick', {
+        const candlestickSeries = (chart as any).addSeries('Candlestick', {
           upColor: "#10b981",
           downColor: "#ef4444",
           borderVisible: false,

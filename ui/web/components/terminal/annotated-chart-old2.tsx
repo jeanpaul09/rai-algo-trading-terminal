@@ -86,7 +86,7 @@ function ChartInner({
 
         chartRef.current = chart
 
-        const candlestickSeries = chart.addSeries('Candlestick', {
+        const candlestickSeries = (chart as any).addSeries('Candlestick', {
           upColor: "#10b981",
           downColor: "#ef4444",
           borderVisible: false,
