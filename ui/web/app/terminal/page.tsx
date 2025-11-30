@@ -71,7 +71,7 @@ export default function TerminalPage() {
     }
   }, [])
   
-  const { isConnected, send } = useWebSocket({
+  const { isConnected, send, reconnectAttempts = 0 } = useWebSocket({
     url: wsUrl,
     reconnect: !!wsUrl, // Only reconnect if we have a valid URL
     onMessage: (data) => {
