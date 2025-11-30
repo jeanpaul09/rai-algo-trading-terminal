@@ -65,6 +65,9 @@ except ImportError:
 HYPERLIQUID_API = "https://api.hyperliquid.xyz"
 BINANCE_API = "https://api.binance.com/api/v3"
 BINANCE_FUTURES_API = "https://fapi.binance.com/fapi/v1"
+COINBASE_API = "https://api.coinbase.com/api/v3/brokerage"
+KRAKEN_API = "https://api.kraken.com/0/public"
+POLYMARKET_WS = "wss://clob.polymarket.com"  # WebSocket for real-time data
 
 
 # Request Models
