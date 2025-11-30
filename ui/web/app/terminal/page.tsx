@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { TerminalErrorBoundary } from "./page-error-boundary"
 import { GlobalControlBar } from "@/components/terminal/global-control-bar"
 import { AnnotatedChart } from "@/components/terminal/annotated-chart"
 import { BrainFeed } from "@/components/terminal/brain-feed"
@@ -360,10 +361,16 @@ export default function TerminalPage() {
     }
   }
 
+  // Get API URL safely
+  const apiUrl = typeof window !== "undefined" 
+    ? (process.env.NEXT_PUBLIC_API_URL || "")
+    : ""
+
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
+    <TerminalErrorBoundary>
+      <div className="flex flex-col h-full w-full bg-background">
       {/* Global Control Bar */}
-      <div className="relative flex-shrink-0">
+      <div className="relative flex-shrink-0 border-b">
         <GlobalControlBar
           agentStatus={agentStatus}
           walletInfo={walletInfo}
@@ -371,14 +378,14 @@ export default function TerminalPage() {
           onEmergencyStop={handleEmergencyStop}
           onToggleAgent={handleToggleAgent}
         />
-        {(!isConnected || !process.env.NEXT_PUBLIC_API_URL) && (
+        {(!isConnected || !apiUrl) && (
           <div className="absolute top-0 right-4 p-2 flex gap-2 z-10">
-            {!process.env.NEXT_PUBLIC_API_URL && (
+            {!apiUrl && (
               <Badge variant="destructive" className="text-xs">
                 Backend URL Not Set - Cannot Load Data
               </Badge>
             )}
-            {!isConnected && process.env.NEXT_PUBLIC_API_URL && (
+            {!isConnected && apiUrl && (
               <Badge variant="destructive" className="text-xs">
                 WebSocket Disconnected
               </Badge>
@@ -388,7 +395,7 @@ export default function TerminalPage() {
       </div>
 
       {/* Main Terminal Layout */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
         {/* Left Panel: Strategy Control */}
         <div className="w-80 border-r flex-shrink-0 overflow-hidden">
           <StrategyControlPanel
@@ -467,6 +474,7 @@ export default function TerminalPage() {
         </div>
       </div>
     </div>
+    </TerminalErrorBoundary>
   )
 }
 
