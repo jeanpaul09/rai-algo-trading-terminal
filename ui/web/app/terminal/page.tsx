@@ -55,6 +55,11 @@ export default function TerminalPage() {
   const [performanceComparisons, setPerformanceComparisons] = useState<PerformanceComparisonType[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
+  // Get API URL safely (needed in multiple places)
+  const apiUrl = typeof window !== "undefined" 
+    ? (process.env.NEXT_PUBLIC_API_URL || "")
+    : ""
+
   // WebSocket connection for real-time updates
   const [wsUrl, setWsUrl] = useState<string>("")
   
@@ -95,7 +100,7 @@ export default function TerminalPage() {
           break
         case "annotation_refresh":
           // Refresh annotations from backend
-          if (apiUrl) {
+          if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_API_URL) {
             fetchChartAnnotations("BTC/USD", selectedStrategy || undefined)
               .then((freshAnnotations) => {
                 setAnnotations(freshAnnotations)
@@ -162,17 +167,13 @@ export default function TerminalPage() {
   // Load initial data - REAL DATA ONLY
   useEffect(() => {
     const loadData = async () => {
-      const backendUrl = typeof window !== "undefined" 
-        ? (process.env.NEXT_PUBLIC_API_URL || "")
-        : ""
-      
-      if (!backendUrl) {
+      if (!apiUrl) {
         console.error("❌ NEXT_PUBLIC_API_URL not configured! Cannot load data.")
         setBackendConnected(false)
         return
       }
 
-      console.log("✅ Backend URL configured:", backendUrl)
+      console.log("✅ Backend URL configured:", apiUrl)
       setBackendConnected(true)
 
       try {
@@ -412,10 +413,6 @@ export default function TerminalPage() {
     }
   }
 
-  // Get API URL safely
-  const apiUrl = typeof window !== "undefined" 
-    ? (process.env.NEXT_PUBLIC_API_URL || "")
-    : ""
 
   if (isLoading) {
     return (
