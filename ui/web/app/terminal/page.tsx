@@ -123,8 +123,9 @@ export default function TerminalPage() {
   const [showAnnotations, setShowAnnotations] = useState(true)
 
   // WebSocket connection for real-time updates
+  const wsUrl = typeof window !== "undefined" ? getWebSocketURL() : ""
   const { isConnected, send } = useWebSocket({
-    url: getWebSocketURL(),
+    url: wsUrl,
     onMessage: (data) => {
       // Handle different message types from WebSocket
       switch (data.type) {

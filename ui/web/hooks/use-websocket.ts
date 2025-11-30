@@ -38,6 +38,12 @@ export function useWebSocket({
       return
     }
 
+    // Don't try to connect if URL is invalid or localhost (production)
+    if (!url || url === "ws://localhost:8000/ws/terminal" || !url.startsWith("ws")) {
+      setIsConnected(false)
+      return
+    }
+
     try {
       const ws = new WebSocket(url)
       wsRef.current = ws
