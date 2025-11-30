@@ -52,7 +52,9 @@ export function MarketPositionsView() {
         const positionsData = positionsRes.ok ? await positionsRes.json() : []
         
         // Fetch liquidations for market context
-        const liqRes = await fetch(`${API_BASE_URL}/api/liquidations?exchange=binance`, {
+        const cleanBaseUrl = (API_BASE_URL || "").replace(/\/+$/, "")
+        const liqUrl = `${cleanBaseUrl}/api/liquidations?exchange=binance`.replace(/([^:]\/)\/+/g, "$1")
+        const liqRes = await fetch(liqUrl, {
           cache: "no-store",
         })
         const liqData = liqRes.ok ? await liqRes.json() : { liquidations: [] }
