@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useWebSocket } from "@/hooks/use-websocket"
-import { getWebSocketURL, fetchAgentStatus, fetchWalletInfo, fetchOHLCVData, fetchChartAnnotations, fetchBrainFeed, fetchStrategies } from "@/lib/api-terminal"
+import { getWebSocketURL, fetchAgentStatus, fetchWalletInfo, fetchOHLCVData, fetchChartAnnotations, fetchBrainFeed, fetchStrategies, updateAgentMode, updateStrategyMode, sendAgentCommand } from "@/lib/api-terminal"
 import type {
   AgentStatus,
   WalletInfo,
@@ -29,48 +29,7 @@ import type {
   PerformanceComparison as PerformanceComparisonType,
 } from "@/lib/types"
 
-// Mock data generators (replace with real API calls)
-function generateMockOHLCV(): OHLCVData[] {
-  const data: OHLCVData[] = []
-  const now = Date.now()
-  const oneDay = 24 * 60 * 60 * 1000
-
-  for (let i = 100; i >= 0; i--) {
-    const time = now - i * oneDay
-    const basePrice = 45000 + Math.random() * 5000
-    data.push({
-      time: Math.floor(time / 1000),
-      open: basePrice,
-      high: basePrice * (1 + Math.random() * 0.02),
-      low: basePrice * (1 - Math.random() * 0.02),
-      close: basePrice * (1 + (Math.random() - 0.5) * 0.02),
-      volume: Math.random() * 1000,
-    })
-  }
-  return data
-}
-
-function generateMockAnnotations(): ChartAnnotation[] {
-  const annotations: ChartAnnotation[] = []
-  const now = Date.now()
-  const oneDay = 24 * 60 * 60 * 1000
-
-  // Add some entry/exit markers
-  for (let i = 0; i < 5; i++) {
-    const time = now - (10 + i * 20) * oneDay
-    annotations.push({
-      id: `entry-${i}`,
-      type: "entry",
-      timestamp: Math.floor(time / 1000),
-      price: 45000 + Math.random() * 5000,
-      strategy: i % 2 === 0 ? "MA Cross Momentum" : "Mean Reversion Arb",
-      reason: "Signal detected",
-      label: "Entry",
-    })
-  }
-
-  return annotations
-}
+// NO MOCK DATA - All data must come from backend API
 
 export default function TerminalPage() {
   // State
@@ -171,31 +130,17 @@ export default function TerminalPage() {
     },
   })
 
-  // Load initial data - try real API first, fallback to mock
+  // Load initial data - REAL DATA ONLY
   useEffect(() => {
     const loadData = async () => {
-      // Check if we have a backend URL configured
-      // In Next.js, NEXT_PUBLIC_ vars are available at build time
       const backendUrl = typeof window !== "undefined" 
-        ? (window.location.origin.includes("localhost") 
-            ? "http://localhost:8000"
-            : (process.env.NEXT_PUBLIC_API_URL || ""))
+        ? (process.env.NEXT_PUBLIC_API_URL || "")
         : ""
       
-      if (!backendUrl || backendUrl === "http://localhost:8000") {
-        // Only use mock in local dev without backend
-        if (window.location.origin.includes("localhost")) {
-          console.warn("⚠️ Local development - using mock data")
-          setBackendConnected(false)
-          setChartData(generateMockOHLCV())
-          setAnnotations(generateMockAnnotations())
-          return
-        } else {
-          // Production but no backend URL - this is an error
-          console.error("❌ NEXT_PUBLIC_API_URL not set in production!")
-          setBackendConnected(false)
-          return
-        }
+      if (!backendUrl) {
+        console.error("❌ NEXT_PUBLIC_API_URL not configured! Cannot load data.")
+        setBackendConnected(false)
+        return
       }
 
       console.log("✅ Backend URL configured:", backendUrl)
@@ -250,46 +195,84 @@ export default function TerminalPage() {
 
   // Handlers
   const handleModeChange = async (mode: "OFF" | "DEMO" | "LIVE") => {
-    setAgentStatus((prev) => ({ ...prev, mode, isActive: mode !== "OFF" }))
-    
-    // Send to backend if connected
-    if (isConnected && send) {
-      send({ type: "set_agent_mode", mode })
-    } else {
-      // Try REST API as fallback
-      try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL
-        if (apiBase) {
-          await fetch(`${apiBase}/api/terminal/status`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mode }),
-          }).catch(() => {})
-        }
-      } catch (e) {
-        console.log("Could not update mode on backend")
+    try {
+      // Update backend first
+      const updatedStatus = await updateAgentMode(mode)
+      setAgentStatus(updatedStatus)
+      
+      // Also send via WebSocket if connected
+      if (isConnected && send) {
+        send({ type: "set_agent_mode", mode })
       }
+    } catch (error) {
+      console.error("Failed to update agent mode:", error)
+      // Don't update local state if backend call failed
     }
   }
 
-  const handleToggleAgent = () => {
-    setAgentStatus((prev) => ({
-      ...prev,
-      isActive: !prev.isActive,
-      mode: !prev.isActive ? "DEMO" : "OFF",
-    }))
+  const handleToggleAgent = async () => {
+    const newMode = agentStatus.isActive ? "OFF" : "DEMO"
+    await handleModeChange(newMode)
   }
 
-  const handleEmergencyStop = () => {
-    setAgentStatus((prev) => ({ ...prev, mode: "OFF", isActive: false }))
-    // Close all positions, etc.
+  const handleEmergencyStop = async () => {
+    try {
+      // Stop all strategies
+      for (const strategy of strategies) {
+        if (strategy.mode !== "OFF") {
+          try {
+            const apiBase = process.env.NEXT_PUBLIC_API_URL
+            if (apiBase) {
+              await fetch(`${apiBase}/api/terminal/strategies/${encodeURIComponent(strategy.name)}/stop`, {
+                method: "POST",
+              }).catch(() => {})
+            }
+          } catch (e) {
+            console.error(`Failed to stop strategy ${strategy.name}:`, e)
+          }
+        }
+      }
+      
+      // Set agent to OFF mode
+      await handleModeChange("OFF")
+      
+      // Send emergency stop via WebSocket
+      if (isConnected && send) {
+        send({ type: "emergency_stop" })
+      }
+    } catch (error) {
+      console.error("Emergency stop failed:", error)
+    }
   }
 
   const handleStrategyModeChange = async (strategyName: string, mode: "OFF" | "DEMO" | "LIVE") => {
-    setStrategies((prev) =>
-      prev.map((s) => (s.name === strategyName ? { ...s, mode } : s))
-    )
-    // TODO: Send to backend
+    try {
+      // Update backend first
+      await updateStrategyMode(strategyName, mode)
+      
+      // Update local state on success
+      setStrategies((prev) =>
+        prev.map((s) => (s.name === strategyName ? { ...s, mode, status: mode !== "OFF" ? "scanning" : "idle" } : s))
+      )
+      
+      // If starting strategy, trigger live trading
+      if (mode === "DEMO" || mode === "LIVE") {
+        try {
+          const apiBase = process.env.NEXT_PUBLIC_API_URL
+          if (apiBase) {
+            await fetch(`${apiBase}/api/terminal/strategies/${encodeURIComponent(strategyName)}/start`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ mode }),
+            })
+          }
+        } catch (e) {
+          console.error("Failed to start strategy:", e)
+        }
+      }
+    } catch (error) {
+      console.error("Failed to update strategy mode:", error)
+    }
   }
 
   const handleEditParameters = (strategyName: string) => {
@@ -302,7 +285,7 @@ export default function TerminalPage() {
     // TODO: Send to backend
   }
 
-  const handleSendCommand = (command: string) => {
+  const handleSendCommand = async (command: string) => {
     const newCommand: AgentCommand = {
       id: `cmd-${Date.now()}`,
       timestamp: new Date().toISOString(),
@@ -312,28 +295,38 @@ export default function TerminalPage() {
 
     setCommands((prev) => [...prev, newCommand])
 
-    // Send command via WebSocket if connected, otherwise simulate response
-    if (isConnected) {
-      send({
-        type: "agent_command",
-        command: newCommand.command,
-        commandId: newCommand.id,
-      })
-    } else {
-      // Fallback: simulate agent response
-      setTimeout(() => {
-        setCommands((prev) =>
-          prev.map((cmd) =>
-            cmd.id === newCommand.id
-              ? {
-                  ...cmd,
-                  status: "completed",
-                  response: `I understand you want me to: "${command}". WebSocket not connected - this is a mock response.`,
-                }
-              : cmd
-          )
+    try {
+      // Send command to backend - REAL API CALL
+      const response = await sendAgentCommand(command)
+      
+      // Update command with response
+      setCommands((prev) =>
+        prev.map((cmd) =>
+          cmd.id === newCommand.id ? { ...cmd, ...response } : cmd
         )
-      }, 2000)
+      )
+      
+      // Also send via WebSocket if connected
+      if (isConnected && send) {
+        send({
+          type: "agent_command",
+          command: newCommand.command,
+          commandId: newCommand.id,
+        })
+      }
+    } catch (error) {
+      console.error("Failed to send command:", error)
+      setCommands((prev) =>
+        prev.map((cmd) =>
+          cmd.id === newCommand.id
+            ? {
+                ...cmd,
+                status: "failed",
+                response: `Error: ${error instanceof Error ? error.message : "Failed to send command"}`,
+              }
+            : cmd
+        )
+      )
     }
   }
 
@@ -352,7 +345,7 @@ export default function TerminalPage() {
           <div className="absolute top-0 right-4 p-2 flex gap-2">
             {!process.env.NEXT_PUBLIC_API_URL && (
               <Badge variant="destructive" className="text-xs">
-                Backend URL Not Set - Using Mock Data
+                Backend URL Not Set - Cannot Load Data
               </Badge>
             )}
             {!isConnected && process.env.NEXT_PUBLIC_API_URL && (

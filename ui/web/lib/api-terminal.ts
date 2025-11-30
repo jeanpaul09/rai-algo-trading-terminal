@@ -30,63 +30,42 @@ const USE_BACKEND = typeof API_BASE_URL === "string" && API_BASE_URL !== "" && A
 
 async function fetchTerminalAPI<T>(
   endpoint: string,
-  options?: RequestInit,
-  fallback?: () => T | Promise<T>
+  options?: RequestInit
 ): Promise<T> {
+  // REQUIRE backend - no mock data fallback
   if (!USE_BACKEND || !API_BASE_URL) {
-    if (fallback) {
-      const result = fallback()
-      return result instanceof Promise ? result : Promise.resolve(result)
-    }
-    throw new Error("No API URL configured and no fallback provided")
+    throw new Error("Backend API URL not configured. Set NEXT_PUBLIC_API_URL environment variable.")
   }
 
   // Ensure endpoint starts with / and remove double slashes
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
-  const cleanBaseUrl = API_BASE_URL.replace(/\/+$/, "") // Remove trailing slashes
-  const url = `${cleanBaseUrl}${cleanEndpoint}`.replace(/([^:]\/)\/+/g, "$1") // Remove double slashes except after protocol
+  const cleanBaseUrl = API_BASE_URL.replace(/\/+$/, "")
+  const url = `${cleanBaseUrl}${cleanEndpoint}`.replace(/([^:]\/)\/+/g, "$1")
 
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
-    })
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  })
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`)
-    }
-
-    return await response.json()
-  } catch (error) {
-    if (fallback) {
-      console.warn(`API call to ${endpoint} failed, using fallback:`, error)
-      const result = fallback()
-      return result instanceof Promise ? result : Promise.resolve(result)
-    }
-    throw error
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status} ${response.statusText}`)
   }
+
+  return await response.json()
 }
 
 /**
- * Fetch agent status
+ * Fetch agent status - REAL DATA ONLY
  */
 export async function fetchAgentStatus(): Promise<AgentStatus> {
-  const fallback: AgentStatus = {
-    mode: "OFF",
-    isActive: false,
-    environment: "testnet",
-    connected: false,
-    lastUpdate: new Date().toISOString(),
-  }
-
-  return fetchTerminalAPI<AgentStatus>("/api/terminal/status", undefined, () => fallback)
+  return fetchTerminalAPI<AgentStatus>("/api/terminal/status")
 }
 
 /**
- * Update agent mode
+ * Update agent mode - REAL BACKEND CALL
  */
 export async function updateAgentMode(mode: "OFF" | "DEMO" | "LIVE"): Promise<AgentStatus> {
   return fetchTerminalAPI<AgentStatus>(
@@ -94,41 +73,32 @@ export async function updateAgentMode(mode: "OFF" | "DEMO" | "LIVE"): Promise<Ag
     {
       method: "POST",
       body: JSON.stringify({ mode }),
-    },
-    () => fetchAgentStatus()
+    }
   )
 }
 
 /**
- * Fetch wallet information
+ * Fetch wallet information - REAL DATA ONLY
  */
-export async function fetchWalletInfo(): Promise<WalletInfo | null> {
-  return fetchTerminalAPI<WalletInfo | null>(
-    "/api/terminal/wallet",
-    undefined,
-    () => null
-  )
+export async function fetchWalletInfo(): Promise<WalletInfo> {
+  return fetchTerminalAPI<WalletInfo>("/api/terminal/wallet")
 }
 
 /**
- * Fetch OHLCV data for chart
+ * Fetch OHLCV data for chart - REAL DATA ONLY
  */
 export async function fetchOHLCVData(
   symbol: string,
   interval: string = "1h",
   limit: number = 1000
 ): Promise<OHLCVData[]> {
-  const fallback: OHLCVData[] = []
-
   return fetchTerminalAPI<OHLCVData[]>(
-    `/api/terminal/chart/data?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`,
-    undefined,
-    () => fallback
+    `/api/terminal/chart/data?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`
   )
 }
 
 /**
- * Fetch chart annotations
+ * Fetch chart annotations - REAL DATA ONLY
  */
 export async function fetchChartAnnotations(
   symbol?: string,
@@ -139,36 +109,28 @@ export async function fetchChartAnnotations(
   if (strategy) params.append("strategy", strategy)
 
   return fetchTerminalAPI<ChartAnnotation[]>(
-    `/api/terminal/chart/annotations?${params.toString()}`,
-    undefined,
-    () => []
+    `/api/terminal/chart/annotations?${params.toString()}`
   )
 }
 
 /**
- * Fetch brain feed entries
+ * Fetch brain feed entries - REAL DATA ONLY
  */
 export async function fetchBrainFeed(limit: number = 100): Promise<BrainFeedEntry[]> {
   return fetchTerminalAPI<BrainFeedEntry[]>(
-    `/api/terminal/brain-feed?limit=${limit}`,
-    undefined,
-    () => []
+    `/api/terminal/brain-feed?limit=${limit}`
   )
 }
 
 /**
- * Fetch strategy controls
+ * Fetch strategy controls - REAL DATA ONLY
  */
 export async function fetchStrategies(): Promise<StrategyControl[]> {
-  return fetchTerminalAPI<StrategyControl[]>(
-    "/api/terminal/strategies",
-    undefined,
-    () => []
-  )
+  return fetchTerminalAPI<StrategyControl[]>("/api/terminal/strategies")
 }
 
 /**
- * Update strategy mode
+ * Update strategy mode - REAL BACKEND CALL
  */
 export async function updateStrategyMode(
   strategyName: string,
@@ -179,42 +141,31 @@ export async function updateStrategyMode(
     {
       method: "POST",
       body: JSON.stringify({ mode }),
-    },
-    () => Promise.resolve()
+    }
   )
 }
 
 /**
- * Send command to agent
+ * Send command to agent - REAL BACKEND CALL
  */
 export async function sendAgentCommand(command: string): Promise<AgentCommand> {
-  const fallback: AgentCommand = {
-    id: `cmd-${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    command,
-    status: "pending",
-  }
-
   return fetchTerminalAPI<AgentCommand>(
     "/api/terminal/agent/command",
     {
       method: "POST",
       body: JSON.stringify({ command }),
-    },
-    () => Promise.resolve(fallback)
+    }
   )
 }
 
 /**
- * Fetch performance comparison data
+ * Fetch performance comparison data - REAL DATA ONLY
  */
 export async function fetchPerformanceComparison(
   strategyName: string
 ): Promise<PerformanceComparison[]> {
   return fetchTerminalAPI<PerformanceComparison[]>(
-    `/api/terminal/performance?strategy=${encodeURIComponent(strategyName)}`,
-    undefined,
-    () => []
+    `/api/terminal/performance?strategy=${encodeURIComponent(strategyName)}`
   )
 }
 

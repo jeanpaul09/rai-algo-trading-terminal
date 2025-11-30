@@ -15,37 +15,11 @@ import { fetchLiveStatus } from "@/lib/api"
 import { format } from "date-fns"
 
 export default async function LivePage() {
-  let liveStatus;
-  try {
-    liveStatus = await fetchLiveStatus();
-  } catch (error) {
-    console.error("Failed to fetch live status:", error);
-    // Return mock data on error
-    liveStatus = {
-      equity: 125000,
-      daily_pnl: 1250.50,
-      total_exposure: 50000,
-      max_exposure: 100000,
-      current_drawdown: -0.0234,
-      max_drawdown_allowed: -0.15,
-      risk_status: "OK" as const,
-      positions: [],
-      venue_overview: [],
-    };
-  }
+  // REAL DATA ONLY - throw error if backend unavailable
+  const liveStatus = await fetchLiveStatus();
 
-  // Generate mock equity curve for live trading (deterministic for SSR)
-  const baseEquity = liveStatus.equity;
-  const liveEquityCurve = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date()
-    date.setHours(date.getHours() - (30 - i))
-    // Use deterministic calculation instead of Math.random() for SSR
-    const variation = (i % 10) * 50 - 250; // Deterministic variation
-    return {
-      timestamp: date.toISOString(),
-      equity: baseEquity + variation,
-    }
-  })
+  // Generate equity curve from real data if available
+  const liveEquityCurve = liveStatus.latest_equity_curve || []
 
   const getRiskStatusIcon = (status: string) => {
     switch (status) {

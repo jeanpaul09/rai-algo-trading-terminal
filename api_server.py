@@ -690,6 +690,29 @@ async def get_terminal_status():
     return _agent_status
 
 
+@app.post("/api/terminal/agent/mode")
+async def update_agent_mode(request: Dict[str, Any]):
+    """Update agent mode (OFF/DEMO/LIVE)."""
+    mode = request.get("mode", "OFF")
+    if mode not in ["OFF", "DEMO", "LIVE"]:
+        raise HTTPException(status_code=400, detail="Invalid mode. Must be OFF, DEMO, or LIVE")
+    
+    _agent_status["mode"] = mode
+    _agent_status["isActive"] = mode != "OFF"
+    _agent_status["lastUpdate"] = datetime.now().isoformat()
+    
+    # Broadcast update via WebSocket
+    try:
+        await broadcast_to_clients({
+            "type": "agent_status",
+            "status": _agent_status
+        })
+    except:
+        pass  # WebSocket might not be initialized
+    
+    return _agent_status
+
+
 @app.get("/api/terminal/wallet")
 async def get_terminal_wallet():
     """Get wallet info from Hyperliquid."""
@@ -820,26 +843,145 @@ async def get_terminal_brain_feed(limit: int = 100):
 
 @app.get("/api/terminal/strategies")
 async def get_terminal_strategies():
-    """Get strategy controls for terminal."""
+    """Get strategy controls for terminal - REAL DATA from filesystem."""
     strategies = []
     try:
         for file in Path("rai_algo/strategies").glob("*.py"):
             if file.name.startswith("_") or file.name == "__init__.py":
                 continue
             strategy_name = file.stem
+            
+            # Check if strategy is active
+            mode = "OFF"
+            status = "idle"
+            currentExposure = 0
+            lastPnL = 0
+            
+            # Check if this strategy has an active trader
+            for trader_id, trader in _live_traders.items():
+                if strategy_name in trader_id:
+                    mode = "DEMO" if trader.config.dry_run else "LIVE"
+                    status = "in_position" if trader.positions else "scanning"
+                    # Get exposure and PnL from trader if available
+                    trader_status = trader.get_status()
+                    if trader_status:
+                        currentExposure = trader_status.get("total_exposure", 0)
+                        lastPnL = trader_status.get("daily_pnl", 0)
+            
             strategies.append({
                 "name": strategy_name.replace("_", " ").title(),
                 "description": f"{strategy_name} strategy",
                 "category": "General",
-                "mode": "OFF",
-                "status": "idle",
+                "mode": mode,
+                "status": status,
                 "parameters": {},
-                "currentExposure": 0,
-                "lastPnL": 0,
+                "currentExposure": currentExposure,
+                "lastPnL": lastPnL,
             })
-    except:
-        pass
+    except Exception as e:
+        print(f"Error loading strategies: {e}")
     return strategies
+
+
+@app.post("/api/terminal/strategies/{strategy_name}/mode")
+async def update_strategy_mode(strategy_name: str, request: Dict[str, Any]):
+    """Update strategy mode (OFF/DEMO/LIVE)."""
+    mode = request.get("mode", "OFF")
+    if mode not in ["OFF", "DEMO", "LIVE"]:
+        raise HTTPException(status_code=400, detail="Invalid mode. Must be OFF, DEMO, or LIVE")
+    
+    # Stop existing traders for this strategy
+    traders_to_stop = [
+        tid for tid in list(_live_traders.keys())
+        if strategy_name.replace(" ", "_").lower() in tid.lower()
+    ]
+    for tid in traders_to_stop:
+        trader = _live_traders[tid]
+        trader.stop()
+        del _live_traders[tid]
+    
+    # If starting (DEMO/LIVE), create new trader
+    if mode in ["DEMO", "LIVE"]:
+        try:
+            from rai_algo.exchanges.hyperliquid import HyperliquidExchange
+            from rai_algo.strategies.example_strategy import ExampleStrategy
+            
+            exchange = HyperliquidExchange()
+            strategy = ExampleStrategy(parameters={})
+            dry_run = mode == "DEMO"
+            
+            config = TraderConfig(
+                symbol="BTC",
+                strategy=strategy,
+                exchange=exchange,
+                dry_run=dry_run,
+            )
+            
+            trader = LiveTrader(config)
+            trader.start()
+            
+            trader_id = f"{strategy_name}_{datetime.now().timestamp()}"
+            _live_traders[trader_id] = trader
+            
+            # Broadcast update
+            try:
+                await broadcast_to_clients({
+                    "type": "strategy_update",
+                    "strategy": {
+                        "name": strategy_name,
+                        "mode": mode,
+                        "status": "scanning"
+                    }
+                })
+            except:
+                pass
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to start strategy: {str(e)}")
+    
+    return {"success": True, "mode": mode}
+
+
+@app.post("/api/terminal/strategies/{strategy_name}/start")
+async def start_strategy(strategy_name: str, request: Dict[str, Any]):
+    """Start a trading strategy."""
+    mode = request.get("mode", "DEMO")
+    try:
+        from rai_algo.exchanges.hyperliquid import HyperliquidExchange
+        from rai_algo.strategies.example_strategy import ExampleStrategy
+        
+        exchange = HyperliquidExchange()
+        strategy = ExampleStrategy(parameters={})
+        dry_run = mode != "LIVE"
+        
+        config = TraderConfig(
+            symbol="BTC",
+            strategy=strategy,
+            exchange=exchange,
+            dry_run=dry_run,
+        )
+        
+        trader = LiveTrader(config)
+        trader.start()
+        
+        trader_id = f"{strategy_name}_{datetime.now().timestamp()}"
+        _live_traders[trader_id] = trader
+        
+        # Broadcast update
+        try:
+            await broadcast_to_clients({
+                "type": "strategy_update",
+                "strategy": {
+                    "name": strategy_name,
+                    "mode": mode,
+                    "status": "scanning"
+                }
+            })
+        except:
+            pass
+        
+        return {"success": True, "trader_id": trader_id, "status": "running"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/live/start")
