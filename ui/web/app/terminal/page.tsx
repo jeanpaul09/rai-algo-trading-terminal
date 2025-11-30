@@ -128,8 +128,13 @@ export default function TerminalPage() {
   useEffect(() => {
     // Only set WebSocket URL on client side
     if (typeof window !== "undefined") {
-      const url = getWebSocketURL()
-      setWsUrl(url)
+      try {
+        const url = getWebSocketURL()
+        setWsUrl(url)
+      } catch (error) {
+        console.error("Error getting WebSocket URL:", error)
+        setWsUrl("") // Set empty to prevent connection attempts
+      }
     }
   }, [])
   
