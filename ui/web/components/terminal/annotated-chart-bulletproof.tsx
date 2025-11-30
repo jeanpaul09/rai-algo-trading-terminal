@@ -86,12 +86,7 @@ export function AnnotatedChart({
         
         const { createChart, ColorType } = await import("lightweight-charts")
         
-        // Create chart - ensure proper dimensions and visibility
-        const chartWidth = container.clientWidth || 800
-        const chartHeight = height || 500
-        
-        console.log(`Creating chart: ${chartWidth}x${chartHeight}`)
-        
+        // Create chart with visible background for debugging
         const chart = createChart(container, {
           layout: {
             background: { type: ColorType.Solid, color: "#000000" },
@@ -102,75 +97,36 @@ export function AnnotatedChart({
             vertLines: { 
               color: "#1f2937",
               visible: true,
-              style: 0, // Solid
             },
             horzLines: { 
               color: "#1f2937",
               visible: true,
-              style: 0, // Solid
             },
           },
-          width: chartWidth,
-          height: chartHeight,
+          width: container.clientWidth || 800,
+          height: height || 500,
           timeScale: {
             timeVisible: true,
             secondsVisible: false,
             borderColor: "#374151",
-            rightOffset: 12,
-            barSpacing: 2,
-            minBarSpacing: 1,
           },
           rightPriceScale: {
             borderColor: "#374151",
             visible: true,
-            scaleMargins: {
-              top: 0.1,
-              bottom: 0.1,
-            },
-          },
-          crosshair: {
-            mode: 0, // Normal
           },
         })
 
         chartRef.current = chart
         console.log('✅ Chart object created')
 
-        // CRITICAL: Ensure container has valid dimensions before adding series
-        // The assertion error happens when dimensions are invalid
-        if (chartWidth <= 0 || chartHeight <= 0) {
-          throw new Error(`Invalid chart dimensions: ${chartWidth}x${chartHeight}`)
-        }
-
-        // Add candlestick series - use minimal options to avoid assertion errors
-        let candlestickSeries
-        try {
-          console.log('Attempting to add candlestick series...')
-          candlestickSeries = chart.addSeries('Candlestick', {
-            upColor: "#10b981",
-            downColor: "#ef4444",
-            borderVisible: false,
-            wickUpColor: "#10b981",
-            wickDownColor: "#ef4444",
-          })
-          
-          if (!candlestickSeries) {
-            throw new Error('addSeries returned null/undefined')
-          }
-          
-          console.log('✅ Candlestick series created successfully')
-        } catch (seriesError) {
-          console.error('❌ Error creating candlestick series:', seriesError)
-          // Try with minimal options
-          try {
-            console.log('Retrying with minimal options...')
-            candlestickSeries = chart.addSeries('Candlestick', {})
-            console.log('✅ Series created with minimal options')
-          } catch (retryError) {
-            console.error('❌ Retry also failed:', retryError)
-            throw new Error(`Failed to create series: ${seriesError instanceof Error ? seriesError.message : String(seriesError)}`)
-          }
-        }
+        // Add candlestick series
+        const candlestickSeries = chart.addSeries('Candlestick', {
+          upColor: "#10b981",
+          downColor: "#ef4444",
+          borderVisible: false,
+          wickUpColor: "#10b981",
+          wickDownColor: "#ef4444",
+        })
 
         seriesRef.current = candlestickSeries
         setIsInitialized(true)
@@ -262,10 +218,8 @@ export function AnnotatedChart({
             return null
           }
 
-          // lightweight-charts expects time as Unix timestamp (seconds) or bar index
-          // We're using Unix timestamp
           return {
-            time: timeValue as any, // Cast to satisfy TypeScript - lightweight-charts accepts number
+            time: timeValue,
             open: open,
             high: Math.max(high, open, close, low), // Ensure high is highest
             low: Math.min(low, open, close, high),  // Ensure low is lowest
@@ -279,31 +233,13 @@ export function AnnotatedChart({
         console.log('First candle:', formattedData[0])
         console.log('Last candle:', formattedData[formattedData.length - 1])
         
-        // Set data on series
-        console.log('Calling setData with', formattedData.length, 'candles')
-        console.log('Sample candle:', formattedData[0])
-        // CRITICAL: Set data on series
         seriesRef.current.setData(formattedData)
         setChartError(null)
-        console.log('✅ Data set on series')
         
-        // CRITICAL: fitContent MUST be called AFTER setData to make candles visible
-        // Use requestAnimationFrame to ensure DOM is updated
-        requestAnimationFrame(() => {
-          try {
-            if (chartRef.current && chartRef.current.timeScale) {
-              const timeScale = chartRef.current.timeScale()
-              if (timeScale && typeof timeScale.fitContent === 'function') {
-                timeScale.fitContent()
-                console.log('✅ Chart fitted to content - candles should be visible now')
-              } else {
-                console.warn('⚠️ fitContent method not found on timeScale')
-              }
-            }
-          } catch (e) {
-            console.error('❌ Error fitting content:', e)
-          }
-        })
+        // Force chart to update
+        if (chartRef.current) {
+          chartRef.current.timeScale().fitContent()
+        }
       } else {
         console.error('❌ No valid candles after formatting!')
         setChartError('No valid chart data - all candles were invalid')

@@ -4,8 +4,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "https://web-production-e9cd4.up.railway.app",
-    // Force cache bust for chart fix
-    NEXT_PUBLIC_BUILD_VERSION: "3.0.0",
+    // Force cache bust for chart fix - UPDATE THIS TO CLEAR CACHE
+    NEXT_PUBLIC_BUILD_VERSION: `4.0.0-${Date.now()}`,
   },
   // Ensure fresh builds
   generateBuildId: async () => {
