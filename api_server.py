@@ -5,6 +5,7 @@ Uses Hyperliquid and Kraken public APIs - NO API KEYS NEEDED (no geo restriction
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
@@ -20,10 +21,21 @@ from rai_algo import BacktestEngine, BaseStrategy
 from rai_algo.backtest import BacktestEngine as BacktestEngineClass
 from rai_algo.data_types import MarketData, BacktestResult
 from rai_algo.live_trader import LiveTrader, TraderConfig
+from rai_algo.demo_trader import DemoTrader, DemoTraderConfig
 from rai_algo.blueprint_translator import BlueprintTranslator
 from rai_algo.optimizer import Optimizer
 
-app = FastAPI(title="RAI-ALGO API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Store event loop for thread-safe callbacks."""
+    global _event_loop
+    _event_loop = asyncio.get_event_loop()
+    print("✅ Event loop stored for thread-safe WebSocket callbacks")
+    yield
+    # Cleanup if needed
+    _event_loop = None
+
+app = FastAPI(title="RAI-ALGO API", version="1.0.0", lifespan=lifespan)
 
 # Enable CORS
 # CORS configuration - allow localhost and Vercel deployments
@@ -46,8 +58,11 @@ except Exception as e:
 # Global state
 _jobs: Dict[str, Dict[str, Any]] = {}
 _live_traders: Dict[str, LiveTrader] = {}
+_demo_traders: Dict[str, DemoTrader] = {}  # Separate storage for demo traders
 _backtest_results: Dict[str, BacktestResult] = {}
 _websocket_connections: List[WebSocket] = []
+_brain_feed_entries: List[Dict[str, Any]] = []  # Store brain feed entries
+_event_loop: Optional[asyncio.AbstractEventLoop] = None  # Store event loop for thread-safe callbacks
 _agent_status = {
     "mode": "OFF",
     "isActive": False,
@@ -829,16 +844,29 @@ async def get_terminal_chart_data(symbol: str = "BTC/USDT", interval: str = "1h"
 
 @app.get("/api/terminal/chart/annotations")
 async def get_terminal_chart_annotations(symbol: str = "BTC/USDT", strategy: Optional[str] = None):
-    """Get chart annotations for terminal."""
-    # TODO: Implement real annotations from trading history
-    return []
+    """Get chart annotations for terminal from demo/live trading."""
+    annotations = []
+    
+    # Get annotations from demo traders
+    for trader_id, trader in _demo_traders.items():
+        if strategy and strategy not in trader_id:
+            continue
+        trader_annotations = trader.get_chart_annotations()
+        # Filter by symbol if needed
+        filtered = [a for a in trader_annotations if a.get("symbol") == symbol or symbol == "BTC/USDT"]
+        annotations.extend(filtered)
+    
+    # TODO: Also get annotations from live traders (when they support it)
+    
+    return annotations
 
 
 @app.get("/api/terminal/brain-feed")
 async def get_terminal_brain_feed(limit: int = 100):
     """Get brain feed entries for terminal."""
-    # TODO: Implement real brain feed from agent logs
-    return []
+    # Return stored brain feed entries (most recent first)
+    entries = _brain_feed_entries[-limit:] if _brain_feed_entries else []
+    return list(reversed(entries))  # Reverse to show newest first
 
 
 @app.get("/api/terminal/strategies")
@@ -857,16 +885,22 @@ async def get_terminal_strategies():
             currentExposure = 0
             lastPnL = 0
             
-            # Check if this strategy has an active trader
-            for trader_id, trader in _live_traders.items():
+            # Check if this strategy has an active trader (demo or live)
+            for trader_id, trader in list(_demo_traders.items()) + list(_live_traders.items()):
                 if strategy_name in trader_id:
-                    mode = "DEMO" if trader.config.dry_run else "LIVE"
-                    status = "in_position" if trader.positions else "scanning"
-                    # Get exposure and PnL from trader if available
-                    trader_status = trader.get_status()
-                    if trader_status:
+                    if trader_id in _demo_traders:
+                        mode = "DEMO"
+                        trader_status = trader.get_status()
+                        status = "in_position" if trader_status.get("open_positions", 0) > 0 else "scanning"
+                        currentExposure = trader_status.get("total_equity", 0) - trader_status.get("virtual_cash", 0)
+                        lastPnL = trader_status.get("total_pnl", 0)
+                    else:
+                        mode = "LIVE"
+                        status = "in_position" if trader.positions else "scanning"
+                        trader_status = trader.get_status() if hasattr(trader, 'get_status') else {}
                         currentExposure = trader_status.get("total_exposure", 0)
                         lastPnL = trader_status.get("daily_pnl", 0)
+                    break
             
             strategies.append({
                 "name": strategy_name.replace("_", " ").title(),
@@ -883,6 +917,51 @@ async def get_terminal_strategies():
     return strategies
 
 
+async def broadcast_to_clients(message: Dict[str, Any]):
+    """Broadcast message to all WebSocket clients."""
+    for ws in _websocket_connections:
+        try:
+            await ws.send_json(message)
+        except:
+            pass
+
+def on_brain_feed_entry(entry: Dict[str, Any]):
+    """Callback for brain feed entries (called from demo trader thread)."""
+    _brain_feed_entries.append(entry)
+    # Keep only last 1000 entries
+    if len(_brain_feed_entries) > 1000:
+        _brain_feed_entries.pop(0)
+    
+    # Broadcast via WebSocket using thread-safe method
+    if _event_loop and _event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(
+            broadcast_to_clients({
+                "type": "brain_feed",
+                "entry": entry,
+            }),
+            _event_loop
+        )
+
+def on_trade_event(trade: Any, event_type: str):
+    """Callback for trade events (called from demo trader thread)."""
+    # Broadcast trade event using thread-safe method
+    if _event_loop and _event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(
+            broadcast_to_clients({
+                "type": "annotation",
+                "annotation": {
+                    "id": trade.id if hasattr(trade, 'id') else f"trade_{len(_brain_feed_entries)}",
+                    "timestamp": int(trade.timestamp.timestamp()) if hasattr(trade, 'timestamp') else int(datetime.now().timestamp()),
+                    "type": event_type,
+                    "price": trade.price if hasattr(trade, 'price') else 0,
+                    "strategy": trade.strategy if hasattr(trade, 'strategy') else "unknown",
+                    "label": f"{event_type.upper()} @ ${trade.price:,.2f}" if hasattr(trade, 'price') else event_type.upper(),
+                    "reason": trade.reason if hasattr(trade, 'reason') else "",
+                },
+            }),
+            _event_loop
+        )
+
 @app.post("/api/terminal/strategies/{strategy_name}/mode")
 async def update_strategy_mode(strategy_name: str, request: Dict[str, Any]):
     """Update strategy mode (OFF/DEMO/LIVE)."""
@@ -890,31 +969,82 @@ async def update_strategy_mode(strategy_name: str, request: Dict[str, Any]):
     if mode not in ["OFF", "DEMO", "LIVE"]:
         raise HTTPException(status_code=400, detail="Invalid mode. Must be OFF, DEMO, or LIVE")
     
-    # Stop existing traders for this strategy
+    # Stop existing traders for this strategy (both demo and live)
     traders_to_stop = [
-        tid for tid in list(_live_traders.keys())
+        tid for tid in list(_demo_traders.keys()) + list(_live_traders.keys())
         if strategy_name.replace(" ", "_").lower() in tid.lower()
     ]
-    for tid in traders_to_stop:
-        trader = _live_traders[tid]
-        trader.stop()
-        del _live_traders[tid]
     
-    # If starting (DEMO/LIVE), create new trader
-    if mode in ["DEMO", "LIVE"]:
+    for tid in traders_to_stop:
+        if tid in _demo_traders:
+            trader = _demo_traders[tid]
+            trader.stop()
+            del _demo_traders[tid]
+        elif tid in _live_traders:
+            trader = _live_traders[tid]
+            trader.stop()
+            del _live_traders[tid]
+    
+    # If starting, create new trader
+    if mode == "DEMO":
+        try:
+            from rai_algo.exchanges.hyperliquid import HyperliquidExchange
+            from rai_algo.strategies.example_strategy import ExampleStrategy
+            from rai_algo.risk import RiskLimits
+            
+            exchange = HyperliquidExchange()
+            strategy = ExampleStrategy(parameters={})
+            
+            # Create demo trader config
+            demo_config = DemoTraderConfig(
+                symbol="BTC",
+                strategy=strategy,
+                exchange=exchange,
+                initial_capital=10000.0,
+                risk_limits=RiskLimits(
+                    max_daily_loss=0.05,
+                    max_position_size=0.10,
+                    max_total_exposure=0.50,
+                ),
+                enable_auto_trading=True,
+            )
+            
+            demo_trader = DemoTrader(demo_config)
+            
+            # Set callbacks
+            demo_trader.on_trade_callback = on_trade_event
+            demo_trader.on_brain_feed_callback = on_brain_feed_entry
+            
+            demo_trader.start()
+            
+            trader_id = f"{strategy_name}_{datetime.now().timestamp()}"
+            _demo_traders[trader_id] = demo_trader
+            
+            # Broadcast update via WebSocket
+            await broadcast_to_clients({
+                "type": "strategy_update",
+                "strategy": {
+                    "name": strategy_name,
+                    "mode": mode,
+                    "status": "scanning"
+                }
+            })
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to start demo strategy: {str(e)}")
+    
+    elif mode == "LIVE":
         try:
             from rai_algo.exchanges.hyperliquid import HyperliquidExchange
             from rai_algo.strategies.example_strategy import ExampleStrategy
             
             exchange = HyperliquidExchange()
             strategy = ExampleStrategy(parameters={})
-            dry_run = mode == "DEMO"
             
             config = TraderConfig(
                 symbol="BTC",
                 strategy=strategy,
                 exchange=exchange,
-                dry_run=dry_run,
+                dry_run=False,  # LIVE mode
             )
             
             trader = LiveTrader(config)
@@ -923,21 +1053,17 @@ async def update_strategy_mode(strategy_name: str, request: Dict[str, Any]):
             trader_id = f"{strategy_name}_{datetime.now().timestamp()}"
             _live_traders[trader_id] = trader
             
-            # Broadcast update via WebSocket if available
-            for ws in _websocket_connections:
-                try:
-                    await ws.send_json({
-                        "type": "strategy_update",
-                        "strategy": {
-                            "name": strategy_name,
-                            "mode": mode,
-                            "status": "scanning"
-                        }
-                    })
-                except:
-                    pass
+            # Broadcast update via WebSocket
+            await broadcast_to_clients({
+                "type": "strategy_update",
+                "strategy": {
+                    "name": strategy_name,
+                    "mode": mode,
+                    "status": "scanning"
+                }
+            })
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to start strategy: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to start live strategy: {str(e)}")
     
     return {"success": True, "mode": mode}
 
@@ -996,33 +1122,57 @@ async def get_live_status():
         positions = []
         venue_overview = {}
         
-        # Aggregate data from all active traders
-        for trader_id, trader in _live_traders.items():
+        # Aggregate data from all active traders (demo and live)
+        for trader_id, trader in list(_demo_traders.items()) + list(_live_traders.items()):
             try:
-                status = trader.get_status()
-                if status:
-                    # Get positions
-                    if "positions" in status:
-                        for pos in status["positions"]:
-                            positions.append({
-                                "exchange": "Hyperliquid",
-                                "symbol": pos.get("symbol", "BTC/USD"),
-                                "side": pos.get("side", "long"),
-                                "size": pos.get("size", 0),
-                                "entry_price": pos.get("entry_price", 0),
-                                "mark_price": pos.get("mark_price", 0),
-                                "unrealized_pnl": pos.get("unrealized_pnl", 0),
-                                "leverage": pos.get("leverage"),
-                            })
-                    
-                    # Aggregate PnL and exposure
-                    daily_pnl += status.get("risk_manager", {}).get("daily_stats", {}).get("total_pnl", 0)
-                    total_exposure += status.get("total_exposure", 0)
-                    
-                    # Get balance
-                    balance = trader.exchange.get_balance("USDC")
-                    if balance:
-                        total_equity += balance.total
+                if trader_id in _demo_traders:
+                    # Demo trader
+                    status = trader.get_status()
+                    if status:
+                        # Get positions from demo trader
+                        if trader.positions:
+                            for pos in trader.positions.values():
+                                positions.append({
+                                    "exchange": "Demo",
+                                    "symbol": pos.symbol,
+                                    "side": pos.side,
+                                    "size": pos.size,
+                                    "entry_price": pos.entry_price,
+                                    "mark_price": pos.current_price or pos.entry_price,
+                                    "unrealized_pnl": pos.unrealized_pnl,
+                                    "leverage": 1.0,
+                                })
+                        
+                        # Aggregate PnL and exposure
+                        daily_pnl += status.get("total_pnl", 0)
+                        total_equity += status.get("total_equity", 0)
+                        total_exposure += (status.get("total_equity", 0) - status.get("virtual_cash", 0))
+                else:
+                    # Live trader
+                    status = trader.get_status() if hasattr(trader, 'get_status') else {}
+                    if status:
+                        # Get positions
+                        if "positions" in status:
+                            for pos in status["positions"]:
+                                positions.append({
+                                    "exchange": "Hyperliquid",
+                                    "symbol": pos.get("symbol", "BTC/USD"),
+                                    "side": pos.get("side", "long"),
+                                    "size": pos.get("size", 0),
+                                    "entry_price": pos.get("entry_price", 0),
+                                    "mark_price": pos.get("mark_price", 0),
+                                    "unrealized_pnl": pos.get("unrealized_pnl", 0),
+                                    "leverage": pos.get("leverage"),
+                                })
+                        
+                        # Aggregate PnL and exposure
+                        daily_pnl += status.get("risk_manager", {}).get("daily_stats", {}).get("total_pnl", 0)
+                        total_exposure += status.get("total_exposure", 0)
+                        
+                        # Get balance
+                        balance = trader.exchange.get_balance("USDC")
+                        if balance:
+                            total_equity += balance.total
             except Exception as e:
                 print(f"Error getting trader status for {trader_id}: {e}")
         
@@ -1109,6 +1259,155 @@ async def start_live_trading(request: Dict[str, Any]):
         return {"success": True, "trader_id": trader_id, "status": "running"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/terminal/performance")
+async def get_terminal_performance(strategy: Optional[str] = None):
+    """Get performance comparison data for terminal (BACKTEST/DEMO/LIVE)."""
+    comparisons = []
+    
+    # Get demo trader performance
+    for trader_id, trader in _demo_traders.items():
+        if strategy and strategy not in trader_id:
+            continue
+        
+        status = trader.get_status()
+        trades = trader.get_trades()
+        equity_curve = trader.equity_curve
+        
+        # Calculate metrics
+        if trades:
+            winning_trades = [t for t in trades if t.pnl and t.pnl > 0]
+            losing_trades = [t for t in trades if t.pnl and t.pnl < 0]
+            win_rate = len(winning_trades) / len([t for t in trades if t.pnl is not None]) if trades else 0
+            
+            total_return = (status.get("total_equity", 10000) - 10000) / 10000 if status.get("total_equity") else 0
+            
+            # Calculate Sharpe ratio (simplified)
+            if len(equity_curve) > 1:
+                returns = [(equity_curve[i]["equity"] - equity_curve[i-1]["equity"]) / equity_curve[i-1]["equity"] 
+                          for i in range(1, len(equity_curve))]
+                if returns:
+                    avg_return = sum(returns) / len(returns)
+                    std_return = (sum((r - avg_return) ** 2 for r in returns) / len(returns)) ** 0.5
+                    sharpe = (avg_return / std_return * (252 ** 0.5)) if std_return > 0 else 0
+                else:
+                    sharpe = 0
+            else:
+                sharpe = 0
+            
+            # Calculate max drawdown
+            if equity_curve:
+                peak = equity_curve[0]["equity"]
+                max_drawdown = 0
+                for point in equity_curve:
+                    if point["equity"] > peak:
+                        peak = point["equity"]
+                    drawdown = (peak - point["equity"]) / peak
+                    if drawdown > max_drawdown:
+                        max_drawdown = drawdown
+            else:
+                max_drawdown = 0
+        else:
+            win_rate = 0
+            sharpe = 0
+            max_drawdown = 0
+            total_return = 0
+        
+        comparisons.append({
+            "mode": "DEMO",
+            "strategy": trader.strategy.name,
+            "equityCurve": equity_curve,
+            "metrics": {
+                "sharpe": sharpe,
+                "sortino": sharpe,  # Simplified
+                "max_drawdown": -max_drawdown,
+                "cagr": total_return * 365 / 30 if total_return else 0,  # Simplified
+                "hit_rate": win_rate,
+                "win_rate": win_rate,
+                "total_return": total_return,
+            },
+            "trades": [
+                {
+                    "id": t.id,
+                    "entry_time": t.entry_time.isoformat() if t.entry_time else t.timestamp.isoformat(),
+                    "exit_time": t.timestamp.isoformat() if t.type.value != "entry" else None,
+                    "entry_price": t.entry_price if t.entry_price else t.price,
+                    "exit_price": t.price if t.type.value != "entry" else None,
+                    "size": t.size,
+                    "side": t.side,
+                    "pnl": t.pnl,
+                    "pnl_pct": t.pnl_pct,
+                }
+                for t in trades
+            ],
+        })
+    
+    # TODO: Add backtest and live trader performance
+    
+    return comparisons
+
+
+@app.websocket("/ws/terminal")
+async def websocket_terminal(websocket: WebSocket):
+    """WebSocket endpoint for real-time terminal updates."""
+    await websocket.accept()
+    _websocket_connections.append(websocket)
+    
+    try:
+        while True:
+            data = await websocket.receive_json()
+            
+            # Handle incoming messages
+            msg_type = data.get("type")
+            
+            if msg_type == "set_agent_mode":
+                mode = data.get("mode", "OFF")
+                _agent_status["mode"] = mode
+                _agent_status["isActive"] = mode != "OFF"
+                _agent_status["lastUpdate"] = datetime.now().isoformat()
+                
+                await broadcast_to_clients({
+                    "type": "agent_status",
+                    "status": _agent_status
+                })
+                
+            elif msg_type == "toggle_agent":
+                _agent_status["isActive"] = not _agent_status["isActive"]
+                if not _agent_status["isActive"]:
+                    _agent_status["mode"] = "OFF"
+                elif _agent_status["mode"] == "OFF":
+                    _agent_status["mode"] = "DEMO"
+                _agent_status["lastUpdate"] = datetime.now().isoformat()
+                
+                await broadcast_to_clients({
+                    "type": "agent_status",
+                    "status": _agent_status
+                })
+                
+            elif msg_type == "emergency_stop":
+                # Stop all traders
+                for trader in list(_demo_traders.values()) + list(_live_traders.values()):
+                    trader.stop()
+                _demo_traders.clear()
+                _live_traders.clear()
+                
+                _agent_status["mode"] = "OFF"
+                _agent_status["isActive"] = False
+                _agent_status["lastUpdate"] = datetime.now().isoformat()
+                
+                await broadcast_to_clients({
+                    "type": "agent_status",
+                    "status": _agent_status
+                })
+                
+    except WebSocketDisconnect:
+        if websocket in _websocket_connections:
+            _websocket_connections.remove(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        if websocket in _websocket_connections:
+            _websocket_connections.remove(websocket)
 
 
 if __name__ == "__main__":

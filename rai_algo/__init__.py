@@ -14,6 +14,7 @@ from rai_algo.agent4_optimizer import Agent4StrategyOptimizer, WeaknessAnalysis
 from rai_algo.exchange import BaseExchange, Order, Balance
 from rai_algo.risk import RiskManager, RiskLimits
 from rai_algo.live_trader import LiveTrader, TraderConfig
+from rai_algo.demo_trader import DemoTrader, DemoTraderConfig
 
 # Try to import ensemble_builder if it exists (optional)
 try:
@@ -46,6 +47,9 @@ try:
         "RiskLimits",
         "LiveTrader",
         "TraderConfig",
+        # Demo Trading
+        "DemoTrader",
+        "DemoTraderConfig",
     ]
 except ImportError:
     __all__ = [
@@ -69,5 +73,8 @@ except ImportError:
         "RiskLimits",
         "LiveTrader",
         "TraderConfig",
+        # Demo Trading
+        "DemoTrader",
+        "DemoTraderConfig",
     ]
 

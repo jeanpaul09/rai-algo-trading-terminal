@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useWebSocket } from "@/hooks/use-websocket"
-import { getWebSocketURL, fetchAgentStatus, fetchWalletInfo, fetchOHLCVData, fetchChartAnnotations, fetchBrainFeed, fetchStrategies, updateAgentMode, updateStrategyMode, sendAgentCommand } from "@/lib/api-terminal"
+import { getWebSocketURL, fetchAgentStatus, fetchWalletInfo, fetchOHLCVData, fetchChartAnnotations, fetchBrainFeed, fetchStrategies, updateAgentMode, updateStrategyMode, sendAgentCommand, fetchPerformanceComparison } from "@/lib/api-terminal"
 import type {
   AgentStatus,
   WalletInfo,
@@ -51,6 +51,7 @@ export default function TerminalPage() {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null)
   const [showAnnotations, setShowAnnotations] = useState(true)
   const [backendConnected, setBackendConnected] = useState(false)
+  const [performanceComparisons, setPerformanceComparisons] = useState<PerformanceComparisonType[]>([])
 
   // WebSocket connection for real-time updates
   const [wsUrl, setWsUrl] = useState<string>("")
@@ -188,10 +189,39 @@ export default function TerminalPage() {
         setBackendConnected(false)
         console.log("⚠️ Backend configured but failed - will retry or show empty state")
       }
+      
+      // Load performance data separately
+      try {
+        const performance = await fetchPerformanceComparison(selectedStrategy || "").catch(() => [])
+        if (performance && performance.length > 0) {
+          setPerformanceComparisons(performance)
+          console.log("✅ Loaded performance data from backend:", performance.length, "comparisons")
+        }
+      } catch (error) {
+        console.error("❌ Error loading performance data:", error)
+      }
     }
     
     loadData()
-  }, [])
+  }, [selectedStrategy])
+  
+  // Refresh performance data periodically when demo trading is active
+  useEffect(() => {
+    if (!agentStatus.isActive || agentStatus.mode !== "DEMO") return
+    
+    const interval = setInterval(async () => {
+      try {
+        const performance = await fetchPerformanceComparison(selectedStrategy || "").catch(() => [])
+        if (performance && performance.length > 0) {
+          setPerformanceComparisons(performance)
+        }
+      } catch (error) {
+        console.error("❌ Error refreshing performance data:", error)
+      }
+    }, 5000) // Refresh every 5 seconds
+    
+    return () => clearInterval(interval)
+  }, [agentStatus.isActive, agentStatus.mode, selectedStrategy])
 
   // Handlers
   const handleModeChange = async (mode: "OFF" | "DEMO" | "LIVE") => {
@@ -331,9 +361,9 @@ export default function TerminalPage() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-screen bg-background overflow-hidden">
       {/* Global Control Bar */}
-      <div className="relative">
+      <div className="relative flex-shrink-0">
         <GlobalControlBar
           agentStatus={agentStatus}
           walletInfo={walletInfo}
@@ -342,7 +372,7 @@ export default function TerminalPage() {
           onToggleAgent={handleToggleAgent}
         />
         {(!isConnected || !process.env.NEXT_PUBLIC_API_URL) && (
-          <div className="absolute top-0 right-4 p-2 flex gap-2">
+          <div className="absolute top-0 right-4 p-2 flex gap-2 z-10">
             {!process.env.NEXT_PUBLIC_API_URL && (
               <Badge variant="destructive" className="text-xs">
                 Backend URL Not Set - Cannot Load Data
@@ -357,8 +387,8 @@ export default function TerminalPage() {
         )}
       </div>
 
-        {/* Main Terminal Layout */}
-        <div className="flex-1 flex overflow-hidden min-h-0">
+      {/* Main Terminal Layout */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left Panel: Strategy Control */}
         <div className="w-80 border-r flex-shrink-0 overflow-hidden">
           <StrategyControlPanel
@@ -431,22 +461,7 @@ export default function TerminalPage() {
           </div>
           <div className="flex-1 overflow-hidden">
             <PerformanceComparison
-              comparisons={[
-                {
-                  mode: "BACKTEST",
-                  equityCurve: [],
-                  metrics: {
-                    sharpe: 2.45,
-                    sortino: 2.78,
-                    max_drawdown: -0.1523,
-                    cagr: 0.2345,
-                    hit_rate: 0.65,
-                    win_rate: 0.65,
-                    total_return: 0.5,
-                  },
-                  trades: [],
-                },
-              ]}
+              comparisons={performanceComparisons}
             />
           </div>
         </div>
