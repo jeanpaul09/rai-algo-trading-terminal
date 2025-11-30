@@ -292,27 +292,34 @@ async def root():
 
 
 @app.get("/api/market/data")
-async def get_market_data(symbol: str = "BTC/USDT", days: int = 30, exchange: str = "binance"):
-    """Get REAL market data from Hyperliquid or Binance."""
+async def get_market_data(symbol: str = "BTC/USDT", days: int = 30, exchange: str = "hyperliquid"):
+    """Get REAL market data from Hyperliquid or Binance. Defaults to Hyperliquid (no geo restrictions)."""
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
     
-    if exchange.lower() == "hyperliquid":
-        data = fetch_hyperliquid_market_data(
-            symbol,
-            start_date.isoformat(),
-            end_date.isoformat(),
-        )
+    data = []
+    exchange_used = exchange.lower()
+    
+    # Default to Hyperliquid (more reliable, no geographic restrictions)
+    if exchange.lower() == "binance":
+        data = fetch_binance_market_data(symbol, start_date.isoformat(), end_date.isoformat())
+        # If Binance fails, try Hyperliquid as fallback
+        if not data:
+            print(f"Binance failed for {symbol}, trying Hyperliquid fallback...")
+            data = fetch_hyperliquid_market_data(symbol, start_date.isoformat(), end_date.isoformat())
+            exchange_used = "hyperliquid" if data else "none"
     else:
-        data = fetch_binance_market_data(
-            symbol,
-            start_date.isoformat(),
-            end_date.isoformat(),
-        )
+        # Use Hyperliquid by default
+        data = fetch_hyperliquid_market_data(symbol, start_date.isoformat(), end_date.isoformat())
+        # If Hyperliquid fails, try Binance as fallback
+        if not data:
+            print(f"Hyperliquid failed for {symbol}, trying Binance fallback...")
+            data = fetch_binance_market_data(symbol, start_date.isoformat(), end_date.isoformat())
+            exchange_used = "binance" if data else "none"
     
     return {
         "symbol": symbol,
-        "exchange": exchange,
+        "exchange": exchange_used,
         "data_points": len(data),
         "data": [
             {
@@ -325,6 +332,7 @@ async def get_market_data(symbol: str = "BTC/USDT", days: int = 30, exchange: st
             }
             for d in data[-100:]  # Last 100 points
         ],
+        "data_source": "real" if data else "mock",
     }
 
 
