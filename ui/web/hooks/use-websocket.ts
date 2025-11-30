@@ -26,6 +26,8 @@ export function useWebSocket({
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const shouldReconnectRef = useRef(reconnect)
+  const reconnectAttemptsRef = useRef(0)
+  const maxReconnectAttempts = 3 // Limit reconnection attempts
 
   const send = useCallback((data: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -57,6 +59,7 @@ export function useWebSocket({
 
       ws.onopen = () => {
         setIsConnected(true)
+        reconnectAttemptsRef.current = 0 // Reset on successful connection
         onOpen?.()
       }
 
@@ -71,20 +74,26 @@ export function useWebSocket({
       }
 
       ws.onerror = (error) => {
-        console.error("🔌 WebSocket error:", error)
-        console.error("WebSocket URL:", url)
-        console.error("WebSocket readyState:", ws.readyState)
+        // Only log first few errors to avoid spam
+        if (reconnectAttemptsRef.current < 2) {
+          console.warn("🔌 WebSocket connection error (this is normal if WebSocket is not supported):", url)
+        }
         onError?.(error)
       }
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setIsConnected(false)
         onClose?.()
 
-        if (shouldReconnectRef.current) {
+        // Only reconnect if we haven't exceeded max attempts and should reconnect
+        if (shouldReconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
+          reconnectAttemptsRef.current += 1
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
           }, reconnectInterval)
+        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+          // Silently stop trying after max attempts
+          console.log("🔌 WebSocket: Stopped reconnecting after", maxReconnectAttempts, "attempts")
         }
       }
     } catch (error) {

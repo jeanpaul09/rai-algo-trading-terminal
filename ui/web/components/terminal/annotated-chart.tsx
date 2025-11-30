@@ -33,6 +33,7 @@ export function AnnotatedChart({
   strategyFilter = null,
 }: AnnotatedChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
+  const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const priceLinesRef = useRef<any[]>([])
