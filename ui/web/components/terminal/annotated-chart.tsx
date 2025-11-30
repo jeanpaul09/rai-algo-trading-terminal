@@ -29,12 +29,25 @@ export function AnnotatedChart({
   showAnnotations = true,
   strategyFilter = null,
 }: AnnotatedChartProps) {
+  console.log('📊 AnnotatedChart render:', { 
+    dataLength: data?.length || 0, 
+    annotationsLength: annotations?.length || 0,
+    symbol,
+    height 
+  })
+  
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const priceLinesRef = useRef<any[]>([])
   const [chartError, setChartError] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string[]>([])
+  
+  const addDebug = (msg: string) => {
+    console.log(`🔍 [Chart Debug] ${msg}`)
+    setDebugInfo(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${msg}`])
+  }
 
   // Filter annotations by strategy if filter is set
   const filteredAnnotations = strategyFilter
@@ -43,27 +56,52 @@ export function AnnotatedChart({
 
   // Initialize chart - ONLY ONCE
   useEffect(() => {
-    if (isInitialized) return // Don't re-initialize
+    addDebug('Init effect started')
+    
+    if (isInitialized) {
+      addDebug('Already initialized, skipping')
+      return // Don't re-initialize
+    }
+    
     if (!chartContainerRef.current) {
-      console.log('⏳ Chart container not ready')
+      addDebug('Container ref is null')
       return
     }
 
+    const container = chartContainerRef.current
+    addDebug(`Container found: ${container ? 'yes' : 'no'}`)
+    addDebug(`Container dimensions: ${container.clientWidth}x${container.clientHeight}`)
+
     // Wait for container to have dimensions
-    if (chartContainerRef.current.clientWidth === 0) {
+    if (container.clientWidth === 0) {
+      addDebug('Container has no width, waiting 100ms...')
       const timer = setTimeout(() => {
-        if (chartContainerRef.current && chartContainerRef.current.clientWidth > 0) {
+        if (container && container.clientWidth > 0) {
+          addDebug(`Container now has width: ${container.clientWidth}`)
           setIsInitialized(false) // Retry
+        } else {
+          addDebug('Container still has no width after wait')
         }
       }, 100)
       return () => clearTimeout(timer)
     }
 
     try {
+      addDebug('Attempting to create chart...')
       console.log('🚀 Creating chart...')
       
+      // Check if lightweight-charts is available
+      if (typeof createChart === 'undefined') {
+        const error = 'createChart is undefined - lightweight-charts not loaded'
+        addDebug(error)
+        setChartError(error)
+        return
+      }
+      
+      addDebug('createChart function available')
+      
       // Create chart
-      const chart = createChart(chartContainerRef.current, {
+      const chart = createChart(container, {
         layout: {
           background: { type: ColorType.Solid, color: "#000000" },
           textColor: "#d1d5db",
@@ -83,18 +121,49 @@ export function AnnotatedChart({
 
       chartRef.current = chart
 
+      addDebug('Chart object created')
+      
+      // Check if addSeries exists
+      if (typeof chart.addSeries !== 'function') {
+        const error = 'chart.addSeries is not a function'
+        addDebug(error)
+        addDebug(`Chart methods: ${Object.getOwnPropertyNames(chart).filter(m => m.includes('Series') || m.includes('add')).join(', ')}`)
+        setChartError(error)
+        return
+      }
+      
+      addDebug('addSeries method available')
+      
       // Add candlestick series using v5 API
-      const candlestickSeries = chart.addSeries('Candlestick', {
-        upColor: "#10b981",
-        downColor: "#ef4444",
-        borderVisible: false,
-        wickUpColor: "#10b981",
-        wickDownColor: "#ef4444",
-      })
+      try {
+        const candlestickSeries = chart.addSeries('Candlestick', {
+          upColor: "#10b981",
+          downColor: "#ef4444",
+          borderVisible: false,
+          wickUpColor: "#10b981",
+          wickDownColor: "#ef4444",
+        })
+        
+        addDebug('Candlestick series created')
+        
+        if (!candlestickSeries) {
+          const error = 'addSeries returned null/undefined'
+          addDebug(error)
+          setChartError(error)
+          return
+        }
 
-      seriesRef.current = candlestickSeries
-      setIsInitialized(true)
-      console.log('✅ Chart created successfully')
+        seriesRef.current = candlestickSeries
+        setIsInitialized(true)
+        addDebug('Chart initialization complete')
+        console.log('✅ Chart created successfully')
+      } catch (seriesError) {
+        const error = `Failed to create series: ${seriesError instanceof Error ? seriesError.message : String(seriesError)}`
+        addDebug(error)
+        setChartError(error)
+        console.error('❌ Error creating series:', seriesError)
+        return
+      }
 
       // Handle resize
       const handleResize = () => {
@@ -112,14 +181,25 @@ export function AnnotatedChart({
         }
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      addDebug(`Error caught: ${errorMsg}`)
+      addDebug(`Error stack: ${error instanceof Error ? error.stack : 'N/A'}`)
       console.error("❌ Error creating chart:", error)
-      setChartError(`Chart error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      setChartError(`Chart error: ${errorMsg}`)
     }
   }, [height, isInitialized])
 
   // Update data when it changes
   useEffect(() => {
-    if (!seriesRef.current || !data || data.length === 0) {
+    addDebug(`Data update effect: series=${!!seriesRef.current}, dataLength=${data?.length || 0}`)
+    
+    if (!seriesRef.current) {
+      addDebug('No series ref, cannot update data')
+      return
+    }
+    
+    if (!data || data.length === 0) {
+      addDebug(`No data to update (length: ${data?.length || 0})`)
       if (data && data.length === 0) {
         console.log('⏳ Waiting for chart data...')
       }
@@ -127,7 +207,13 @@ export function AnnotatedChart({
     }
 
     try {
+      addDebug(`Processing ${data.length} candles...`)
       console.log(`📊 Updating chart with ${data.length} candles...`)
+      
+      // Log first candle for debugging
+      if (data.length > 0) {
+        addDebug(`First candle: ${JSON.stringify(data[0])}`)
+      }
       
       const formattedData: CandlestickData[] = data
         .map((d) => {
@@ -151,17 +237,31 @@ export function AnnotatedChart({
         })
         .filter(d => d.open > 0 && d.close > 0 && d.high >= d.low)
 
+      addDebug(`Formatted ${formattedData.length} valid candles`)
+      
       if (formattedData.length > 0) {
+        if (!seriesRef.current || typeof seriesRef.current.setData !== 'function') {
+          const error = 'Series ref invalid or setData not available'
+          addDebug(error)
+          setChartError(error)
+          return
+        }
+        
+        addDebug('Calling setData...')
         seriesRef.current.setData(formattedData)
         setChartError(null)
+        addDebug('Data set successfully')
         console.log(`✅ Chart updated with ${formattedData.length} valid candles`)
       } else {
+        addDebug('No valid candles after filtering')
         console.warn('⚠️ No valid candles after filtering')
-        setChartError('No valid chart data available')
+        setChartError('No valid chart data available - all candles filtered out')
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      addDebug(`Data update error: ${errorMsg}`)
       console.error("❌ Error updating chart data:", error)
-      setChartError(`Data error: ${error instanceof Error ? error.message : 'Unknown'}`)
+      setChartError(`Data error: ${errorMsg}`)
     }
   }, [data])
 
@@ -248,11 +348,41 @@ export function AnnotatedChart({
         </div>
       </div>
       {chartError ? (
-        <div className="p-8 text-center text-muted-foreground flex items-center justify-center" style={{ height: `${height}px` }}>
-          <div>
-            <p className="text-destructive mb-2">⚠️ Chart Error</p>
-            <p className="text-sm">{chartError}</p>
-            <p className="text-xs mt-2">Data: {data.length} candles available</p>
+        <div className="p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-4" style={{ height: `${height}px` }}>
+          <div className="max-w-2xl">
+            <p className="text-destructive mb-2 font-bold">⚠️ Chart Error</p>
+            <p className="text-sm mb-4">{chartError}</p>
+            <div className="text-xs space-y-1 text-left bg-gray-900 p-4 rounded border border-gray-800">
+              <p><strong>Debug Info:</strong></p>
+              <p>Data: {data.length} candles available</p>
+              <p>Container: {chartContainerRef.current ? 'Found' : 'Not found'}</p>
+              <p>Initialized: {isInitialized ? 'Yes' : 'No'}</p>
+              <p>Series: {seriesRef.current ? 'Created' : 'Not created'}</p>
+              {data.length > 0 && (
+                <div className="mt-2">
+                  <p><strong>First candle:</strong></p>
+                  <pre className="text-xs overflow-auto">{JSON.stringify(data[0], null, 2)}</pre>
+                </div>
+              )}
+              {debugInfo.length > 0 && (
+                <div className="mt-2">
+                  <p><strong>Debug log:</strong></p>
+                  <div className="max-h-32 overflow-y-auto text-xs">
+                    {debugInfo.map((msg, i) => <p key={i}>{msg}</p>)}
+                  </div>
+                </div>
+              )}
+            </div>
+            <button 
+              onClick={() => {
+                setChartError(null)
+                setIsInitialized(false)
+                addDebug('Manual reset triggered')
+              }}
+              className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+            >
+              Reset Chart
+            </button>
           </div>
         </div>
       ) : !data || data.length === 0 ? (

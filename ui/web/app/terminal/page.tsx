@@ -195,10 +195,17 @@ export default function TerminalPage() {
           console.log("✅ Loaded wallet info from backend:", wallet)
         }
         if (chartData && chartData.length > 0) {
-          setChartData(chartData)
           console.log("✅ Loaded REAL chart data from backend:", chartData.length, "candles")
+          console.log("📊 First candle:", chartData[0])
+          console.log("📊 Last candle:", chartData[chartData.length - 1])
+          setChartData(chartData)
         } else {
-          console.log("⚠️ Backend returned empty chart data - will retry or wait for WebSocket")
+          console.warn("⚠️ Backend returned empty chart data")
+          console.warn("Response was:", chartData)
+          console.warn("This could mean:")
+          console.warn("  1. Backend API endpoint not working")
+          console.warn("  2. Market data source (Hyperliquid/Kraken) unavailable")
+          console.warn("  3. Network/connection issue")
         }
         if (annotations && annotations.length > 0) {
           setAnnotations(annotations)
