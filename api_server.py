@@ -3,7 +3,7 @@ RAI-ALGO API Server with REAL Market Data
 Uses Hyperliquid and Binance public APIs - NO API KEYS NEEDED
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
@@ -39,6 +39,27 @@ app.add_middleware(
 _jobs: Dict[str, Dict[str, Any]] = {}
 _live_traders: Dict[str, LiveTrader] = {}
 _backtest_results: Dict[str, BacktestResult] = {}
+_websocket_connections: List[WebSocket] = []
+_agent_status = {
+    "mode": "OFF",
+    "isActive": False,
+    "environment": os.getenv("HYPERLIQUID_TESTNET", "false").lower() == "true" and "testnet" or "mainnet",
+    "connected": True,
+    "lastUpdate": datetime.now().isoformat(),
+}
+
+# Initialize Anthropic client for AI agent
+try:
+    from anthropic import Anthropic
+    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+    anthropic_client = Anthropic(api_key=anthropic_api_key) if anthropic_api_key else None
+    if anthropic_client:
+        print("✅ Anthropic client initialized for AI agent")
+    else:
+        print("⚠️  ANTHROPIC_API_KEY not set. Agent features disabled.")
+except ImportError:
+    anthropic_client = None
+    print("⚠️  anthropic package not installed. Install with: pip install anthropic")
 
 # API URLs - REAL PUBLIC APIs (NO KEYS NEEDED)
 HYPERLIQUID_API = "https://api.hyperliquid.xyz"
@@ -608,25 +629,32 @@ async def list_jobs():
 
 @app.post("/api/live/start")
 async def start_live_trading(request: Dict[str, Any]):
-    """Start live trading."""
+    """Start live trading with Hyperliquid."""
     try:
         from rai_algo.strategies.example_strategy import ExampleStrategy
-        from rai_algo.exchanges.binance import BinanceExchange
+        from rai_algo.exchanges.hyperliquid import HyperliquidExchange
+        
+        # Use Hyperliquid instead of Binance
+        exchange = HyperliquidExchange()
         
         strategy = ExampleStrategy(parameters=request.get("parameters", {}))
-        exchange = BinanceExchange(testnet=request.get("dry_run", True))
+        
+        # Determine dry_run from mode
+        dry_run = request.get("dry_run", True)
+        if "mode" in request:
+            dry_run = request["mode"] != "LIVE"
         
         config = TraderConfig(
-            symbol=request["symbol"],
+            symbol=request.get("symbol", "BTC"),
             strategy=strategy,
             exchange=exchange,
-            dry_run=request.get("dry_run", True),
+            dry_run=dry_run,
         )
         
         trader = LiveTrader(config)
         trader.start()
         
-        trader_id = f"{request['strategy_name']}_{request['symbol']}_{uuid.uuid4().hex[:8]}"
+        trader_id = f"{request.get('strategy_name', 'strategy')}_{request.get('symbol', 'BTC')}_{uuid.uuid4().hex[:8]}"
         _live_traders[trader_id] = trader
         
         return {"success": True, "trader_id": trader_id, "status": "running"}
