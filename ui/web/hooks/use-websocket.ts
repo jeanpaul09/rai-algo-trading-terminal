@@ -96,7 +96,7 @@ export function useWebSocket({
         // Only reconnect if we haven't exceeded max attempts and should reconnect
         if (shouldReconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current += 1
-          setReconnectAttemptsState(reconnectAttemptsRef.current) // Update state
+          setReconnectAttempts(reconnectAttemptsRef.current) // Update state
           // Exponential backoff: 1s, 2s, 4s, 8s, 16s
           const backoffDelay = Math.min(reconnectInterval * Math.pow(2, reconnectAttemptsRef.current - 1), 30000)
           if (reconnectAttemptsRef.current <= 2) {
@@ -110,7 +110,7 @@ export function useWebSocket({
           if (reconnectAttemptsRef.current === maxReconnectAttempts) {
             console.warn("🔌 WebSocket: Stopped reconnecting after", maxReconnectAttempts, "attempts. Using polling fallback.")
           }
-          setReconnectAttemptsState(maxReconnectAttempts) // Update state for UI
+          setReconnectAttempts(maxReconnectAttempts) // Update state for UI
         }
       }
     } catch (error) {
@@ -152,7 +152,7 @@ export function useWebSocket({
     send,
     connect,
     disconnect,
-    reconnectAttempts: reconnectAttemptsState, // Expose attempt count
+    reconnectAttempts: reconnectAttempts, // Expose attempt count
   }
 }
 
