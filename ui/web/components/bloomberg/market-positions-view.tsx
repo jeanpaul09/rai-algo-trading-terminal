@@ -51,9 +51,7 @@ export function MarketPositionsView() {
         })
         const positionsData = positionsRes.ok ? await positionsRes.json() : []
         
-        // Fetch liquidations for market context
-        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-        const cleanBaseUrl = (API_BASE_URL || "").replace(/\/+$/, "")
+        // Fetch liquidations for market context (use Hyperliquid, no geo restrictions)
         const liqUrl = `${cleanBaseUrl}/api/liquidations?exchange=hyperliquid`.replace(/([^:]\/)\/+/g, "$1")
         const liqRes = await fetch(liqUrl, {
           cache: "no-store",
