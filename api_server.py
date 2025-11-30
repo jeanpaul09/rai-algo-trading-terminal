@@ -913,10 +913,10 @@ if __name__ == "__main__":
     print("🔌 API: http://localhost:8000")
     print("📚 Docs: http://localhost:8000/docs")
     print("")
-    print("✅ Real data sources (PUBLIC APIs - NO KEYS NEEDED):")
+    print("✅ Real data sources (PUBLIC APIs - NO KEYS NEEDED, NO GEO RESTRICTIONS):")
     print(f"   - Hyperliquid: {HYPERLIQUID_API}")
-    print(f"   - Binance Spot: {BINANCE_API}")
-    print(f"   - Binance Futures: {BINANCE_FUTURES_API}")
+    print(f"   - Kraken: {KRAKEN_API}")
+    print(f"   - Coinbase: {COINBASE_API}")
     print("")
     print("🌐 Testing connections...")
     
