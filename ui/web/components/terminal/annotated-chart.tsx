@@ -86,7 +86,12 @@ export function AnnotatedChart({
         
         const { createChart, ColorType } = await import("lightweight-charts")
         
-        // Create chart with visible background for debugging
+        // Create chart - ensure proper dimensions and visibility
+        const chartWidth = container.clientWidth || 800
+        const chartHeight = height || 500
+        
+        console.log(`Creating chart: ${chartWidth}x${chartHeight}`)
+        
         const chart = createChart(container, {
           layout: {
             background: { type: ColorType.Solid, color: "#000000" },
@@ -97,22 +102,34 @@ export function AnnotatedChart({
             vertLines: { 
               color: "#1f2937",
               visible: true,
+              style: 0, // Solid
             },
             horzLines: { 
               color: "#1f2937",
               visible: true,
+              style: 0, // Solid
             },
           },
-          width: container.clientWidth || 800,
-          height: height || 500,
+          width: chartWidth,
+          height: chartHeight,
           timeScale: {
             timeVisible: true,
             secondsVisible: false,
             borderColor: "#374151",
+            rightOffset: 12,
+            barSpacing: 2,
+            minBarSpacing: 1,
           },
           rightPriceScale: {
             borderColor: "#374151",
             visible: true,
+            scaleMargins: {
+              top: 0.1,
+              bottom: 0.1,
+            },
+          },
+          crosshair: {
+            mode: 0, // Normal
           },
         })
 
@@ -235,16 +252,39 @@ export function AnnotatedChart({
         console.log('First candle:', formattedData[0])
         console.log('Last candle:', formattedData[formattedData.length - 1])
         
+        // Set data on series
+        console.log('Calling setData with', formattedData.length, 'candles')
+        console.log('Sample candle:', formattedData[0])
         seriesRef.current.setData(formattedData)
         setChartError(null)
         
-        // Force chart to update and fit content
+        // Force chart to update and fit content - CRITICAL for display
         try {
           if (chartRef.current && chartRef.current.timeScale) {
-            chartRef.current.timeScale().fitContent()
+            const timeScale = chartRef.current.timeScale()
+            if (timeScale && typeof timeScale.fitContent === 'function') {
+              timeScale.fitContent()
+              console.log('✅ Chart fitted to content')
+            }
           }
         } catch (e) {
           console.warn('Could not fit content:', e)
+        }
+        
+        // Also try scrollToPosition if available
+        try {
+          if (chartRef.current && chartRef.current.timeScale) {
+            const timeScale = chartRef.current.timeScale()
+            if (timeScale && formattedData.length > 0) {
+              // Scroll to most recent candle
+              const lastTime = formattedData[formattedData.length - 1].time
+              if (typeof timeScale.scrollToPosition === 'function') {
+                timeScale.scrollToPosition(lastTime, true)
+              }
+            }
+          }
+        } catch (e) {
+          // Ignore - not critical
         }
       } else {
         console.error('❌ No valid candles after formatting!')
