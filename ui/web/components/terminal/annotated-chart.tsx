@@ -65,14 +65,15 @@ export function AnnotatedChart({
     chartRef.current = chart
 
       // Add candlestick series - lightweight-charts v5.0.9 API
-      // IMPORTANT: v5 uses addSeries('Candlestick', options) - NOT addCandlestickSeries
+      // CRITICAL: v5.0.9 ONLY supports addSeries('Candlestick', options)
+      // addCandlestickSeries DOES NOT EXIST in v5 - removed in breaking change
       let candlestickSeries
       try {
-        // v5 API: addSeries with series type as first parameter
-        // Check if addSeries exists (v5) - this is the correct method
-        if (typeof (chart as any).addSeries === 'function') {
-          console.log('Using addSeries (v5 API)')
-          candlestickSeries = (chart as any).addSeries('Candlestick', {
+        // v5 API: MUST use addSeries('Candlestick', {...})
+        const addSeriesFn = (chart as any).addSeries
+        if (typeof addSeriesFn === 'function') {
+          console.log('✅ Using addSeries (v5.0.9 API) - correct method')
+          candlestickSeries = addSeriesFn.call(chart, 'Candlestick', {
             upColor: "#10b981",
             downColor: "#ef4444",
             borderVisible: false,
