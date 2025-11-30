@@ -53,6 +53,7 @@ export default function TerminalPage() {
   const [showAnnotations, setShowAnnotations] = useState(true)
   const [backendConnected, setBackendConnected] = useState(false)
   const [performanceComparisons, setPerformanceComparisons] = useState<PerformanceComparisonType[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   // WebSocket connection for real-time updates
   const [wsUrl, setWsUrl] = useState<string>("")
@@ -200,6 +201,8 @@ export default function TerminalPage() {
         }
       } catch (error) {
         console.error("❌ Error loading performance data:", error)
+      } finally {
+        setIsLoading(false)
       }
     }
     
@@ -365,6 +368,17 @@ export default function TerminalPage() {
   const apiUrl = typeof window !== "undefined" 
     ? (process.env.NEXT_PUBLIC_API_URL || "")
     : ""
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading terminal...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <TerminalErrorBoundary>
