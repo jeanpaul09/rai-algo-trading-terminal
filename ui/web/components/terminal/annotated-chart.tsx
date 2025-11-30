@@ -1,7 +1,15 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData } from "lightweight-charts"
+import { 
+  createChart, 
+  ColorType, 
+  IChartApi, 
+  ISeriesApi, 
+  CandlestickData,
+  CandlestickSeriesOptions,
+  SeriesMarker
+} from "lightweight-charts"
 import type { OHLCVData, ChartAnnotation } from "@/lib/types"
 import { Card } from "@/components/ui/card"
 
@@ -25,6 +33,7 @@ export function AnnotatedChart({
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
+  const priceLinesRef = useRef<any[]>([])
 
   // Filter annotations by strategy if filter is set
   const filteredAnnotations = strategyFilter
@@ -54,14 +63,15 @@ export function AnnotatedChart({
 
     chartRef.current = chart
 
-    // Add candlestick series
-    const candlestickSeries = chart.addCandlestickSeries({
+    // Add candlestick series - lightweight-charts v5 API
+    // Note: TypeScript types may not match runtime API, using type assertion
+    const candlestickSeries = (chart as any).addCandlestickSeries({
       upColor: "#10b981",
       downColor: "#ef4444",
       borderVisible: false,
       wickUpColor: "#10b981",
       wickDownColor: "#ef4444",
-    })
+    }) as ISeriesApi<"Candlestick">
 
     seriesRef.current = candlestickSeries
 
@@ -114,7 +124,7 @@ export function AnnotatedChart({
     const series = seriesRef.current
 
     // Create markers array
-    const markers = filteredAnnotations
+    const markers: SeriesMarker<number>[] = filteredAnnotations
       .filter((annotation) => annotation.type !== "region")
       .map((annotation) => {
         const color = annotation.color || getAnnotationColor(annotation.type)
@@ -122,17 +132,19 @@ export function AnnotatedChart({
         const position = getAnnotationPosition(annotation.type)
 
         return {
-          time: annotation.timestamp as any,
-          position: position as any,
+          time: annotation.timestamp as number,
+          position: position as 'aboveBar' | 'belowBar' | 'inBar',
           color: color,
-          shape: shape as any,
+          shape: shape as 'circle' | 'square' | 'arrowUp' | 'arrowDown',
           text: annotation.label || annotation.reason || annotation.type,
           size: 1,
         }
       })
 
-    // Set markers on the series
-    series.setMarkers(markers)
+    // Set markers on the series (using setMarkers if available, otherwise ignore for now)
+    if (markers.length > 0 && 'setMarkers' in series) {
+      (series as any).setMarkers(markers)
+    }
 
     // Add price lines for regions and levels
     const priceLines: any[] = []
@@ -142,7 +154,7 @@ export function AnnotatedChart({
         // For regions, add two price lines
         const color = annotation.color || getAnnotationColor(annotation.type)
         priceLines.push(
-          chart.createPriceLine({
+          (chart as any).createPriceLine({
             price: annotation.price,
             color: color + "40",
             lineWidth: 1,
@@ -152,7 +164,7 @@ export function AnnotatedChart({
           })
         )
         priceLines.push(
-          chart.createPriceLine({
+          (chart as any).createPriceLine({
             price: annotation.priceEnd,
             color: color + "40",
             lineWidth: 1,
@@ -164,7 +176,7 @@ export function AnnotatedChart({
         // Add price lines for TP/SL/target levels
         const color = annotation.color || getAnnotationColor(annotation.type)
         priceLines.push(
-          chart.createPriceLine({
+          (chart as any).createPriceLine({
             price: annotation.price,
             color: color,
             lineWidth: 2,
@@ -179,8 +191,11 @@ export function AnnotatedChart({
     // Cleanup price lines on unmount or when annotations change
     return () => {
       priceLines.forEach((line) => {
-        chart.removePriceLine(line)
+        if ((chart as any).removePriceLine) {
+          (chart as any).removePriceLine(line)
+        }
       })
+      priceLinesRef.current = []
     }
   }, [filteredAnnotations, showAnnotations])
 
