@@ -203,6 +203,22 @@ export default function TerminalPage() {
   // Load initial data - try real API first, fallback to mock
   useEffect(() => {
     const loadData = async () => {
+      // Check if we have a backend URL configured
+      const backendUrl = typeof window !== "undefined" 
+        ? (process.env.NEXT_PUBLIC_API_URL || "")
+        : ""
+      
+      if (!backendUrl) {
+        console.warn("⚠️ No NEXT_PUBLIC_API_URL configured - using mock data")
+        setBackendConnected(false)
+        setChartData(generateMockOHLCV())
+        setAnnotations(generateMockAnnotations())
+        return
+      }
+
+      console.log("✅ Backend URL configured:", backendUrl)
+      setBackendConnected(true)
+
       try {
         // Use API client functions which handle the backend URL correctly
         const [status, wallet, chartData, annotations, brainFeed, strategies] = await Promise.all([
@@ -226,22 +242,11 @@ export default function TerminalPage() {
           setChartData(chartData)
           console.log("✅ Loaded REAL chart data from backend:", chartData.length, "candles")
         } else {
-          // Only use mock if backend URL is not set (local dev without backend)
-          if (!process.env.NEXT_PUBLIC_API_URL) {
-            console.log("⚠️ No backend URL - using mock data for local development")
-            setChartData(generateMockOHLCV())
-          } else {
-            console.log("⚠️ Backend returned empty chart data - will retry or wait for WebSocket")
-          }
+          console.log("⚠️ Backend returned empty chart data - will retry or wait for WebSocket")
         }
         if (annotations && annotations.length > 0) {
           setAnnotations(annotations)
           console.log("✅ Loaded REAL annotations from backend:", annotations.length, "annotations")
-        } else {
-          // Only use mock if backend URL is not set
-          if (!process.env.NEXT_PUBLIC_API_URL) {
-            setAnnotations(generateMockAnnotations())
-          }
         }
         if (brainFeed && brainFeed.length > 0) {
           setBrainFeedEntries(brainFeed)
@@ -254,14 +259,7 @@ export default function TerminalPage() {
       } catch (error) {
         console.error("❌ Error loading data from backend:", error)
         setBackendConnected(false)
-        // Only use mock data if backend URL is not configured (local dev)
-        if (!process.env.NEXT_PUBLIC_API_URL) {
-          console.log("⚠️ No backend URL configured - using mock data for development")
-          setChartData(generateMockOHLCV())
-          setAnnotations(generateMockAnnotations())
-        } else {
-          console.log("⚠️ Backend configured but failed - will retry or show empty state")
-        }
+        console.log("⚠️ Backend configured but failed - will retry or show empty state")
       }
     }
     
@@ -366,6 +364,7 @@ export default function TerminalPage() {
           onModeChange={handleModeChange}
           onEmergencyStop={handleEmergencyStop}
           onToggleAgent={handleToggleAgent}
+          backendConnected={backendConnected}
         />
         {(!isConnected || !process.env.NEXT_PUBLIC_API_URL) && (
           <div className="absolute top-0 right-4 p-2 flex gap-2">
