@@ -9,7 +9,11 @@ from datetime import datetime, timedelta
 import requests
 import json
 import asyncio
-import websockets
+try:
+    import websockets
+    WEBSOCKETS_AVAILABLE = True
+except ImportError:
+    WEBSOCKETS_AVAILABLE = False
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -152,6 +156,10 @@ async def get_kraken_market_data(symbol: str = "BTC/USDT", days: int = 30):
 @router.websocket("/ws/polymarket")
 async def polymarket_websocket(websocket: WebSocket):
     """WebSocket endpoint for Polymarket real-time data."""
+    if not WEBSOCKETS_AVAILABLE:
+        await websocket.close(code=1003, reason="websockets module not installed")
+        return
+    
     await websocket.accept()
     
     try:
