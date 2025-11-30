@@ -152,7 +152,8 @@ export function AnnotatedChart({
         let candlestickSeries
         try {
           console.log('Adding candlestick series...')
-          candlestickSeries = chart.addSeries('Candlestick', {
+          // Type assertion needed for lightweight-charts v5
+          candlestickSeries = (chart as any).addSeries('Candlestick', {
             upColor: "#10b981",
             downColor: "#ef4444",
             borderVisible: false,
@@ -170,7 +171,7 @@ export function AnnotatedChart({
           // Try with absolutely minimal options
           try {
             console.log('Retrying with minimal options...')
-            candlestickSeries = chart.addSeries('Candlestick', {})
+            candlestickSeries = (chart as any).addSeries('Candlestick', {})
             if (!candlestickSeries) {
               throw new Error('Minimal addSeries also returned null')
             }
