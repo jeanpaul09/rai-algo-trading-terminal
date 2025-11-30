@@ -311,11 +311,9 @@ export default function TerminalPage() {
     // TODO: Send to backend
   }
 
-  const handleEditParameters = async (strategyName: string, params: Record<string, any>) => {
-    setStrategies((prev) =>
-      prev.map((s) => (s.name === strategyName ? { ...s, parameters: params } : s))
-    )
-    // TODO: Send to backend
+  const handleEditParameters = (strategyName: string) => {
+    // Open parameters dialog
+    console.log("Edit parameters for", strategyName)
   }
 
   const handleTriggerBacktest = async (strategyName: string) => {
