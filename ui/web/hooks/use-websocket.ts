@@ -38,8 +38,15 @@ export function useWebSocket({
       return
     }
 
-    // Don't try to connect if URL is invalid or localhost (production)
-    if (!url || url === "ws://localhost:8000/ws/terminal" || !url.startsWith("ws")) {
+    // Don't try to connect if URL is invalid
+    if (!url || !url.startsWith("ws")) {
+      setIsConnected(false)
+      return
+    }
+    
+    // Allow localhost in development
+    const isLocalhost = typeof window !== "undefined" && window.location.origin.includes("localhost")
+    if (!isLocalhost && url.includes("localhost")) {
       setIsConnected(false)
       return
     }

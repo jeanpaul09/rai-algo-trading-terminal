@@ -205,16 +205,27 @@ export default function TerminalPage() {
   useEffect(() => {
     const loadData = async () => {
       // Check if we have a backend URL configured
+      // In Next.js, NEXT_PUBLIC_ vars are available at build time
       const backendUrl = typeof window !== "undefined" 
-        ? (process.env.NEXT_PUBLIC_API_URL || "")
+        ? (window.location.origin.includes("localhost") 
+            ? "http://localhost:8000"
+            : (process.env.NEXT_PUBLIC_API_URL || ""))
         : ""
       
-      if (!backendUrl) {
-        console.warn("⚠️ No NEXT_PUBLIC_API_URL configured - using mock data")
-        setBackendConnected(false)
-        setChartData(generateMockOHLCV())
-        setAnnotations(generateMockAnnotations())
-        return
+      if (!backendUrl || backendUrl === "http://localhost:8000") {
+        // Only use mock in local dev without backend
+        if (window.location.origin.includes("localhost")) {
+          console.warn("⚠️ Local development - using mock data")
+          setBackendConnected(false)
+          setChartData(generateMockOHLCV())
+          setAnnotations(generateMockAnnotations())
+          return
+        } else {
+          // Production but no backend URL - this is an error
+          console.error("❌ NEXT_PUBLIC_API_URL not set in production!")
+          setBackendConnected(false)
+          return
+        }
       }
 
       console.log("✅ Backend URL configured:", backendUrl)

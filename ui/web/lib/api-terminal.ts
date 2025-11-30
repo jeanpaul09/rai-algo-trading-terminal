@@ -227,16 +227,23 @@ export function getWebSocketURL(): string {
   }
   
   const apiUrl = getApiBaseUrl()
-  if (!apiUrl || apiUrl === "http://localhost:8000") {
-    // Return empty string when no backend is configured (won't connect)
+  if (!apiUrl) {
     return ""
+  }
+  
+  // Allow localhost in development
+  const isLocalhost = window.location.origin.includes("localhost")
+  if (apiUrl === "http://localhost:8000" && !isLocalhost) {
+    return "" // Don't connect to localhost in production
   }
   
   try {
     const wsProtocol = apiUrl.startsWith("https") ? "wss:" : "ws:"
     // Remove protocol and trailing slashes, then add ws/terminal
     const baseURL = apiUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "")
-    return `${wsProtocol}//${baseURL}/ws/terminal`
+    const wsUrl = `${wsProtocol}//${baseURL}/ws/terminal`
+    console.log("🔌 WebSocket URL:", wsUrl)
+    return wsUrl
   } catch (error) {
     console.warn("Failed to generate WebSocket URL:", error)
     return ""
