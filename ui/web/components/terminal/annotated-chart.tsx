@@ -64,14 +64,27 @@ export function AnnotatedChart({
     chartRef.current = chart
 
       // Add candlestick series - lightweight-charts v5 API
-      // Note: TypeScript types may not match runtime API, using type assertion
-      const candlestickSeries = (chart as any).addCandlestickSeries({
-        upColor: "#10b981",
-        downColor: "#ef4444",
-        borderVisible: false,
-        wickUpColor: "#10b981",
-        wickDownColor: "#ef4444",
-      }) as ISeriesApi<"Candlestick">
+      // Check if addCandlestickSeries exists, otherwise use addSeries
+      let candlestickSeries
+      if (typeof (chart as any).addCandlestickSeries === 'function') {
+        candlestickSeries = (chart as any).addCandlestickSeries({
+          upColor: "#10b981",
+          downColor: "#ef4444",
+          borderVisible: false,
+          wickUpColor: "#10b981",
+          wickDownColor: "#ef4444",
+        })
+      } else if (typeof (chart as any).addSeries === 'function') {
+        candlestickSeries = (chart as any).addSeries('Candlestick', {
+          upColor: "#10b981",
+          downColor: "#ef4444",
+          borderVisible: false,
+          wickUpColor: "#10b981",
+          wickDownColor: "#ef4444",
+        })
+      } else {
+        throw new Error('Chart API not supported - neither addCandlestickSeries nor addSeries found')
+      }
 
       seriesRef.current = candlestickSeries
 
